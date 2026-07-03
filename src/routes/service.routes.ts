@@ -301,13 +301,14 @@ router.put('/:id', authenticate, requireVendor, async (req: AuthRequest, res: Re
 
     const {
       title, categoryId, description, shortDesc, basePrice, discountPrice,
-      images, tags, cities, minAdvancePercent, preparationTime, serviceDuration,
+      images, tags, cities, minAdvancePercent, preparationTime, serviceDuration, isActive,
     } = req.body;
 
     const data: any = {
       categoryId, description, shortDesc, basePrice, discountPrice,
       minAdvancePercent, preparationTime, serviceDuration,
     };
+    if (isActive !== undefined) data.isActive = isActive;
 
     if (title) {
       data.title = title;

@@ -100,6 +100,22 @@ router.get('/sections', authenticate, requireAdmin, async (_req: Request, res: R
   }
 });
 
+router.put('/sections/reorder/batch', authenticate, requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { items } = req.body;
+
+    await db.transaction(async (tx: any) => {
+      for (const item of items) {
+        await tx.update(homepageSections).set({ sortOrder: item.sortOrder }).where(eq(homepageSections.id, item.id));
+      }
+    });
+
+    ApiResponse.success(res, null, 'Sections reordered');
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.put('/sections/:id', authenticate, requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const id = parseInt(req.params.id);
@@ -119,17 +135,33 @@ router.put('/sections/:id', authenticate, requireAdmin, async (req: Request, res
   }
 });
 
-router.put('/sections/reorder/batch', authenticate, requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+router.post('/sections', authenticate, requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { items } = req.body;
+    const { name, type, title, subtitle, sortOrder, isActive, config } = req.body;
 
-    await db.transaction(async (tx: any) => {
-      for (const item of items) {
-        await tx.update(homepageSections).set({ sortOrder: item.sortOrder }).where(eq(homepageSections.id, item.id));
-      }
-    });
+    const result = await db.insert(homepageSections).values({
+      name: name || type,
+      type,
+      title,
+      subtitle,
+      sortOrder: sortOrder || 99,
+      isActive: isActive !== undefined ? isActive : true,
+      config: config || null,
+    }).returning();
 
-    ApiResponse.success(res, null, 'Sections reordered');
+    ApiResponse.success(res, result[0], 'Section created successfully', 201);
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete('/sections/:id', authenticate, requireAdmin, async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const id = parseInt(req.params.id);
+    
+    await db.delete(homepageSections).where(eq(homepageSections.id, id));
+    
+    ApiResponse.success(res, null, 'Section deleted successfully');
   } catch (error) {
     next(error);
   }
