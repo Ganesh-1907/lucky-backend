@@ -69,6 +69,33 @@ router.get('/dashboard', authenticate, requireAdmin, async (_req: AuthRequest, r
   }
 });
 
+// GET /api/admin/users — List all users
+router.get('/users', authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { role } = req.query;
+    
+    let whereFilter = undefined;
+    if (typeof role === 'string' && role !== 'All') {
+      whereFilter = eq(users.role, role as any);
+    }
+
+    const usersList = await db.select({
+      id: users.id,
+      name: users.name,
+      email: users.email,
+      phone: users.phone,
+      role: users.role,
+      city: users.city,
+      isActive: users.isActive,
+      createdAt: users.createdAt,
+    }).from(users).where(whereFilter).orderBy(desc(users.createdAt));
+
+    ApiResponse.success(res, usersList);
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/admin/vendors — List all vendors
 router.get('/vendors', authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
