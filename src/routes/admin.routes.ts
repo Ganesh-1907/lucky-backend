@@ -511,4 +511,62 @@ router.put('/settings', authenticate, requireAdmin, async (req: AuthRequest, res
   }
 });
 
+// GET /api/admin/reviews — List all reviews for moderation
+router.get('/reviews', authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { status, page = '1', limit = '20' } = req.query;
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+
+    let whereFilter = undefined;
+    if (status === 'APPROVED') whereFilter = eq(reviews.isApproved, true);
+    if (status === 'PENDING' || status === 'REJECTED') whereFilter = eq(reviews.isApproved, false);
+
+    const [reviewsList, totalResult] = await Promise.all([
+      db.query.reviews.findMany({
+        where: whereFilter,
+        with: {
+          client: { columns: { name: true, email: true, avatar: true } },
+          service: {
+            columns: { title: true },
+            with: { vendor: { columns: { businessName: true } } }
+          },
+        },
+        orderBy: [desc(reviews.createdAt)],
+        offset: (pageNum - 1) * limitNum,
+        limit: limitNum,
+      }),
+      db.select({ value: count() }).from(reviews).where(whereFilter),
+    ]);
+
+    const mapped = reviewsList.map(r => ({
+      ...r,
+      status: r.isApproved ? 'APPROVED' : 'PENDING', // The DB just stores true/false for approval
+    }));
+
+    ApiResponse.paginated(res, mapped, { page: pageNum, limit: limitNum, total: Number(totalResult[0]?.value || 0) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// PUT /api/admin/reviews/:id/status
+router.put('/reviews/:id/status', authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { isApproved, adminReply } = req.body;
+
+    const updateData: any = {};
+    if (typeof isApproved === 'boolean') updateData.isApproved = isApproved;
+    if (typeof adminReply === 'string') updateData.adminReply = adminReply;
+
+    const [review] = await db.update(reviews).set(updateData).where(eq(reviews.id, id)).returning();
+    if (!review) throw ApiError.notFound('Review not found');
+
+    ApiResponse.success(res, review, `Review ${isApproved ? 'approved' : 'rejected'}`);
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;

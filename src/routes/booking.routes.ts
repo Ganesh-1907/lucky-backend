@@ -143,6 +143,7 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response, next: Next
           service: { columns: { title: true, images: true, slug: true } },
           vendor: { columns: { businessName: true } },
           payments: true,
+          review: true,
         },
         orderBy: [desc(bookings.createdAt)],
         offset: (pageNum - 1) * limitNum,
