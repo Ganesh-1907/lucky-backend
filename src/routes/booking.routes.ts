@@ -275,6 +275,17 @@ router.get('/vendor/list', authenticate, async (req: AuthRequest, res: Response,
     const conditions = [eq(bookings.vendorId, vendor.id)];
     if (status) conditions.push(eq(bookings.status, status as any));
 
+    const searchVal = typeof req.query.search === 'string' ? req.query.search : undefined;
+    if (searchVal) {
+      const s = `%${searchVal}%`;
+      conditions.push(
+        or(
+          ilike(bookings.bookingNumber, s),
+          ilike(bookings.status, s)
+        )
+      );
+    }
+
     const [bookingsData, totalRows] = await Promise.all([
       db.query.bookings.findMany({
         where: and(...conditions),

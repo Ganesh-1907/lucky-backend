@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import db from '../config/database';
-import { eq, and, isNull, asc } from 'drizzle-orm';
-import { categories } from '../../db/schema/index';
+import { eq, and, isNull, asc, inArray } from 'drizzle-orm';
+import { categories, services } from '../../db/schema/index';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdmin } from '../middleware/roleGuard';
 import { ApiResponse } from '../utils/apiResponse';
@@ -127,9 +127,31 @@ router.delete('/:id', authenticate, requireAdmin, async (req: AuthRequest, res: 
   try {
     const id = parseInt(req.params.id);
 
-    await db.delete(categories).where(eq(categories.id, id));
+    // Business Logic: Find all children of this category
+    const children = await db.query.categories.findMany({
+      where: eq(categories.parentId, id),
+    });
+    
+    const categoryIdsToCheck = [id, ...children.map(c => c.id)];
 
-    ApiResponse.success(res, null, 'Category deleted');
+    // Check if the category or any of its children have associated services
+    const hasServices = await db.query.services.findFirst({
+      where: inArray(services.categoryId, categoryIdsToCheck),
+    });
+
+    if (hasServices) {
+      throw ApiError.badRequest('Cannot delete this category because it (or its sub-categories) has active services. Please reassign the services first.');
+    }
+
+    // Safe to delete: Delete children first, then the parent
+    await db.transaction(async (tx: any) => {
+      if (children.length > 0) {
+        await tx.delete(categories).where(eq(categories.parentId, id));
+      }
+      await tx.delete(categories).where(eq(categories.id, id));
+    });
+
+    ApiResponse.success(res, null, 'Category and sub-categories deleted successfully');
   } catch (error) {
     next(error);
   }

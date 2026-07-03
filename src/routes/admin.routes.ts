@@ -1,6 +1,6 @@
 import { Router, Response, NextFunction } from 'express';
 import db from '../config/database';
-import { eq, and, or, inArray, gte, count, sum, avg, desc, sql } from 'drizzle-orm';
+import { eq, and, or, inArray, gte, count, sum, avg, desc, sql, ilike } from 'drizzle-orm';
 import { users, vendors, categories, services, bookings, payments, reviews, coupons, settings } from '../../db/schema/index';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdmin } from '../middleware/roleGuard';
@@ -148,6 +148,27 @@ router.put('/vendors/:id/commission', authenticate, requireAdmin, async (req: Au
   }
 });
 
+// DELETE /api/admin/vendors/:id — Hard delete a vendor
+router.delete('/vendors/:id', authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const id = parseInt(req.params.id);
+
+    // Business Logic: Prevent deletion if vendor has bookings
+    const hasBookings = await db.query.bookings.findFirst({
+      where: eq(bookings.vendorId, id)
+    });
+
+    if (hasBookings) {
+      throw ApiError.badRequest('Cannot delete vendor because they have existing bookings. Please suspend them instead.');
+    }
+
+    await db.delete(vendors).where(eq(vendors.id, id));
+    ApiResponse.success(res, null, 'Vendor deleted successfully');
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/admin/services — All services for moderation
 router.get('/services', authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
@@ -203,7 +224,56 @@ router.put('/services/:id/status', authenticate, requireAdmin, async (req: AuthR
   }
 });
 
-// GET /api/admin/bookings — All bookings
+// DELETE /api/admin/services/:id — Hard delete a service
+router.delete('/services/:id', authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const id = parseInt(req.params.id);
+
+    // Business Logic: Prevent deletion if service has bookings
+    const hasBookings = await db.query.bookings.findFirst({
+      where: eq(bookings.serviceId, id)
+    });
+
+    if (hasBookings) {
+      throw ApiError.badRequest('Cannot delete service because it has existing bookings. Please reject or suspend it instead.');
+    }
+
+    await db.delete(services).where(eq(services.id, id));
+    ApiResponse.success(res, null, 'Service deleted successfully');
+  } catch (error) {
+    next(error);
+  }
+});
+
+// DELETE /api/admin/bookings/:id — Hard delete a booking
+router.delete('/bookings/:id', authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const id = parseInt(req.params.id);
+
+    // Business Logic: Prevent deletion if booking has completed payments
+    const hasPayments = await db.query.payments.findFirst({
+      where: and(eq(payments.bookingId, id), eq(payments.status, 'COMPLETED'))
+    });
+
+    if (hasPayments) {
+      throw ApiError.badRequest('Cannot delete booking because it has completed payments. Please cancel it and process refunds instead.');
+    }
+
+    // Since payments might exist as PENDING, we should delete them first or let cascade handle it (but schema has no cascade for payments).
+    // So we manually delete associated payments, reviews, then the booking.
+    await db.transaction(async (tx: any) => {
+      await tx.delete(payments).where(eq(payments.bookingId, id));
+      await tx.delete(reviews).where(eq(reviews.bookingId, id));
+      await tx.delete(bookings).where(eq(bookings.id, id));
+    });
+
+    ApiResponse.success(res, null, 'Booking deleted successfully');
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/admin/payments — All payments
 router.get('/bookings', authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { status, page = '1', limit = '20' } = req.query;
@@ -213,6 +283,17 @@ router.get('/bookings', authenticate, requireAdmin, async (req: AuthRequest, res
     const filters = [];
     const statusVal = typeof status === 'string' ? status : undefined;
     if (statusVal) filters.push(eq(bookings.status, statusVal as any));
+
+    const searchVal = typeof req.query.search === 'string' ? req.query.search : undefined;
+    if (searchVal) {
+      const s = `%${searchVal}%`;
+      filters.push(
+        or(
+          ilike(bookings.bookingNumber, s),
+          ilike(bookings.status, s)
+        )
+      );
+    }
 
     const whereFilter = filters.length > 0 ? and(...filters) : undefined;
 
@@ -335,7 +416,8 @@ router.post('/coupons', authenticate, requireAdmin, async (req: AuthRequest, res
 router.put('/coupons/:id', authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const id = parseInt(req.params.id);
-    const [coupon] = await db.update(coupons).set(req.body).where(eq(coupons.id, id)).returning();
+    const { id: _, createdAt, updatedAt, ...updateData } = req.body;
+    const [coupon] = await db.update(coupons).set(updateData).where(eq(coupons.id, id)).returning();
     if (!coupon) throw ApiError.notFound('Coupon not found');
     ApiResponse.success(res, coupon, 'Coupon updated');
   } catch (error) {

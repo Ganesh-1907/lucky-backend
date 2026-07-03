@@ -16,7 +16,7 @@ export const taskStatusEnum = pgEnum('task_status', ['PENDING', 'IN_PROGRESS', '
 export const paymentTypeEnum = pgEnum('payment_type', ['ADVANCE', 'REMAINING', 'REFUND']);
 export const paymentStatusEnum = pgEnum('payment_status', ['PENDING', 'COMPLETED', 'FAILED', 'REFUNDED']);
 export const couponTypeEnum = pgEnum('coupon_type', ['PERCENTAGE', 'FIXED']);
-export const bannerPositionEnum = pgEnum('banner_position', ['HERO', 'SIDEBAR', 'FOOTER', 'POPUP']);
+export const bannerPositionEnum = pgEnum('banner_position', ['HERO', 'SIDEBAR', 'FOOTER', 'POPUP', 'CATEGORY', 'HOMEPAGE', 'CUSTOM']);
 export const notificationTypeEnum = pgEnum('notification_type', ['BOOKING', 'PAYMENT', 'SYSTEM', 'PROMOTION', 'FOLLOW_UP', 'ASSIGNMENT']);
 
 // ==================== TABLES ====================
@@ -250,13 +250,20 @@ export const banners = pgTable('banners', {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
   title: varchar().notNull(),
   subtitle: varchar(),
+  description: text(),
   image: varchar().notNull(),
   link: varchar(),
   sortOrder: integer().default(0).notNull(),
+  priority: integer().default(0).notNull(),
   isActive: boolean().default(true).notNull(),
   position: bannerPositionEnum().default('HERO').notNull(),
   startDate: timestamp({ mode: 'string' }),
   endDate: timestamp({ mode: 'string' }),
+  visibility: jsonb(), // { desktop: boolean, tablet: boolean, mobile: boolean }
+  clicks: integer().default(0).notNull(),
+  impressions: integer().default(0).notNull(),
+  createdBy: integer(), // reference to users
+  updatedBy: integer(), // reference to users
   createdAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
   updatedAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
 });

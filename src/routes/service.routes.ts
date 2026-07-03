@@ -99,6 +99,36 @@ router.get('/', optionalAuth, async (req: AuthRequest, res: Response, next: Next
   }
 });
 
+router.get('/by-id/:id', optionalAuth, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const service = await db.query.services.findFirst({
+      where: eq(services.id, parseInt(req.params.id)),
+      with: {
+        category: { with: { parent: true } },
+        vendor: {
+          columns: {
+            id: true, businessName: true, description: true,
+            avgRating: true, reviewCount: true, totalBookings: true,
+            serviceCities: true,
+          },
+        },
+        addons: {
+          where: eq(addons.isActive, true),
+          orderBy: [asc(addons.sortOrder)],
+        }
+      },
+    });
+
+    if (!service) {
+      throw ApiError.notFound('Service not found');
+    }
+
+    ApiResponse.success(res, { service });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.get('/:slug', optionalAuth, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const service = await db.query.services.findFirst({
