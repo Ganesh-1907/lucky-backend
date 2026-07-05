@@ -79,7 +79,10 @@ router.post('/register', validate(registerSchema), async (req, res, next) => {
       columns: { password: false },
     });
 
-    const tokens = generateTokens(user.id);
+    let tokens = {};
+    if (role !== 'VENDOR') {
+      tokens = generateTokens(user.id);
+    }
 
     ApiResponse.created(res, {
       user: userData,
@@ -180,6 +183,18 @@ router.post('/google', async (req, res, next) => {
 
     if (!user!.isActive) {
       throw ApiError.forbidden('Account is deactivated');
+    }
+
+    if (user!.role === 'VENDOR' && user!.vendor) {
+      if (user!.vendor.status === 'PENDING') {
+        throw ApiError.forbidden('Your vendor account is pending approval.');
+      }
+      if (user!.vendor.status === 'REJECTED') {
+        throw ApiError.forbidden('Your vendor application was rejected.');
+      }
+      if (user!.vendor.status === 'SUSPENDED') {
+        throw ApiError.forbidden('Your vendor account is suspended.');
+      }
     }
 
     const tokens = generateTokens(user!.id);

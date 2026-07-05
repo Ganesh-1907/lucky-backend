@@ -32,7 +32,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
           data = await db.query.categories.findMany({
             where: and(eq(categories.isActive, true)),
             orderBy: [asc(categories.sortOrder)],
-            limit: 8,
+            limit: section.config?.limit || 8,
           });
           break;
 
@@ -47,6 +47,10 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
           else if (config.tag === 'bestseller') conditions.push(eq(services.isBestSeller, true));
           else if (config.tag === 'new') conditions.push(eq(services.isNewArrival, true));
           else if (config.tag === 'featured') conditions.push(eq(services.isFeatured, true));
+          
+          if (config.categoryId) {
+            conditions.push(eq(services.categoryId, parseInt(config.categoryId)));
+          }
 
           data = await db.query.services.findMany({
             where: and(...conditions),
@@ -64,6 +68,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
           data = await db.query.cities.findMany({
             where: eq(cities.isActive, true),
             orderBy: [asc(cities.sortOrder)],
+            limit: section.config?.limit || 10,
           });
           break;
 
@@ -75,7 +80,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
               service: { columns: { title: true } },
             },
             orderBy: [desc(reviews.createdAt)],
-            limit: 6,
+            limit: section.config?.limit || 6,
           });
           break;
       }

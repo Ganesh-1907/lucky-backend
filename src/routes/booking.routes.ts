@@ -160,11 +160,16 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response, next: Next
   }
 });
 
-// GET /api/bookings/:id
+// GET /api/bookings/:idOrNumber
 router.get('/:id', authenticate, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
+    const param = req.params.id;
+    const isNumeric = /^\d+$/.test(param);
+    
     const booking = await db.query.bookings.findFirst({
-      where: eq(bookings.id, parseInt(req.params.id)),
+      where: isNumeric 
+        ? eq(bookings.id, parseInt(param))
+        : eq(bookings.bookingNumber, param),
       with: {
         service: { with: { category: true } },
         vendor: { with: { user: { columns: { name: true, phone: true } } } },

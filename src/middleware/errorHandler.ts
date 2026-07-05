@@ -3,7 +3,9 @@ import { ApiError } from '../utils/apiError';
 import { PostgresError } from 'postgres';
 
 export function errorHandler(err: Error, _req: Request, res: Response, _next: NextFunction) {
-  console.error('Error:', err);
+  if (!(err instanceof ApiError) || err.statusCode >= 500) {
+    console.error('Error:', err);
+  }
 
   if (err instanceof ApiError) {
     return res.status(err.statusCode).json({
