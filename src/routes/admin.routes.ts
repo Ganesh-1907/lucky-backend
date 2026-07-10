@@ -301,6 +301,69 @@ router.delete('/bookings/:id', authenticate, requireAdmin, async (req: AuthReque
 });
 
 // GET /api/admin/payments — All payments
+router.get('/payments', authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { status, search, page = '1', limit = '20' } = req.query;
+    const pageNum = parseInt(page as string);
+    const limitNum = parseInt(limit as string);
+
+    const filters = [];
+    if (typeof status === 'string' && status !== 'All') {
+      filters.push(eq(payments.status, status === 'SUCCESS' ? 'COMPLETED' : status as any));
+    }
+
+    const whereFilter = filters.length > 0 ? and(...filters) : undefined;
+
+    const [paymentsList, totalResult] = await Promise.all([
+      db.query.payments.findMany({
+        where: whereFilter,
+        with: {
+          booking: {
+            with: {
+              client: { columns: { name: true } },
+              vendor: { columns: { businessName: true } },
+            }
+          }
+        },
+        orderBy: [desc(payments.createdAt)],
+        offset: (pageNum - 1) * limitNum,
+        limit: limitNum,
+      }),
+      db.select({ value: count() }).from(payments).where(whereFilter),
+    ]);
+
+    let filtered = paymentsList;
+    if (typeof search === 'string' && search) {
+      const s = search.toLowerCase();
+      filtered = paymentsList.filter((p: any) => 
+        (p.razorpayPaymentId || '').toLowerCase().includes(s) ||
+        (p.razorpayOrderId || '').toLowerCase().includes(s) ||
+        (p.booking?.client?.name || '').toLowerCase().includes(s) ||
+        (p.booking?.bookingNumber || '').toLowerCase().includes(s)
+      );
+    }
+
+    const mapped = filtered.map((p: any) => ({
+      id: p.id,
+      paymentId: p.razorpayPaymentId || p.razorpayOrderId,
+      bookingNumber: p.booking?.bookingNumber,
+      customer: p.booking?.client?.name,
+      vendor: p.booking?.vendor?.businessName,
+      amount: Number(p.amount),
+      commission: Number(p.booking?.commission || 0) * (Number(p.amount) / Number(p.booking?.totalAmount || 1)),
+      vendorPayout: Number(p.amount) - (Number(p.booking?.commission || 0) * (Number(p.amount) / Number(p.booking?.totalAmount || 1))),
+      method: "RAZORPAY",
+      status: p.status === 'COMPLETED' ? 'SUCCESS' : p.status,
+      createdAt: new Date(p.createdAt).toLocaleString(),
+    }));
+
+    ApiResponse.paginated(res, mapped, { page: pageNum, limit: limitNum, total: Number(totalResult[0]?.value || 0) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/admin/bookings — All bookings
 router.get('/bookings', authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { status, page = '1', limit = '20' } = req.query;
