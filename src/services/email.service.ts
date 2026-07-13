@@ -30,7 +30,7 @@ export async function sendEmail(
     return;
   }
 
-  const fromEmail = process.env.ADMIN_EMAIL || process.env.SMTP_FROM || 'noreply@ammaruchulu.com';
+  const fromEmail = process.env.ADMIN_EMAIL || process.env.SMTP_FROM || 'noreply@example.com';
   const transporter = getTransporter();
 
   await transporter.sendMail({

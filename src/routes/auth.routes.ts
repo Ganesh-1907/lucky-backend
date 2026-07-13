@@ -31,14 +31,20 @@ const loginSchema = z.object({
 });
 
 function generateTokens(userId: number) {
+  const jwtSecret = process.env.JWT_SECRET;
+  const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET;
+  if (!jwtSecret || !jwtRefreshSecret) {
+    throw new Error('JWT_SECRET and JWT_REFRESH_SECRET must be set in environment');
+  }
+
   const accessToken = jwt.sign(
     { userId },
-    process.env.JWT_SECRET || 'fallback-secret',
+    jwtSecret,
     { expiresIn: (process.env.JWT_EXPIRES_IN || '7d') as any }
   );
   const refreshToken = jwt.sign(
     { userId },
-    process.env.JWT_REFRESH_SECRET || 'fallback-refresh-secret',
+    jwtRefreshSecret,
     { expiresIn: (process.env.JWT_REFRESH_EXPIRES_IN || '30d') as any }
   );
   return { accessToken, refreshToken };
@@ -240,9 +246,12 @@ router.post('/refresh', async (req, res, next) => {
       throw ApiError.badRequest('Refresh token is required');
     }
 
+    if (!process.env.JWT_REFRESH_SECRET) {
+      throw ApiError.internal('JWT_REFRESH_SECRET not configured');
+    }
     const decoded = jwt.verify(
       refreshToken,
-      process.env.JWT_REFRESH_SECRET || 'fallback-refresh-secret'
+      process.env.JWT_REFRESH_SECRET
     ) as any;
 
     const [user] = await db.select().from(users).where(eq(users.id, decoded.userId)).limit(1);

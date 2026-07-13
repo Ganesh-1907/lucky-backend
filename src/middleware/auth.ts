@@ -22,8 +22,12 @@ export async function authenticate(req: AuthRequest, _res: Response, next: NextF
       throw ApiError.unauthorized('No token provided');
     }
 
+    if (!process.env.JWT_SECRET) {
+      throw ApiError.internal('JWT_SECRET not configured');
+    }
+
     const token = authHeader.split(' ')[1];
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as any;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET) as any;
 
     const result = await db
       .select({ id: users.id, email: users.email, name: users.name, role: users.role, isActive: users.isActive })
@@ -58,9 +62,13 @@ export function optionalAuth(req: AuthRequest, _res: Response, next: NextFunctio
     return next();
   }
 
+  if (!process.env.JWT_SECRET) {
+    return next();
+  }
+
   const token = authHeader.split(' ')[1];
   try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as any;
+    const decoded = jwt.verify(token, process.env.JWT_SECRET) as any;
     db
       .select({ id: users.id, email: users.email, name: users.name, role: users.role, isActive: users.isActive })
       .from(users)
