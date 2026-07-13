@@ -296,13 +296,16 @@ router.put('/change-password', authenticate, async (req: AuthRequest, res, next)
       throw ApiError.badRequest('Cannot change password for social login accounts');
     }
 
-    const isMatch = await bcrypt.compare(currentPassword, user.password);
-    if (!isMatch) {
-      throw ApiError.badRequest('Current password is incorrect');
+    // Skip current password check if user is forced to change password
+    if (!user.mustChangePassword) {
+      const isMatch = await bcrypt.compare(currentPassword, user.password);
+      if (!isMatch) {
+        throw ApiError.badRequest('Current password is incorrect');
+      }
     }
 
     const hashedPassword = await bcrypt.hash(newPassword, 12);
-    await db.update(users).set({ password: hashedPassword }).where(eq(users.id, req.user!.id));
+    await db.update(users).set({ password: hashedPassword, mustChangePassword: false }).where(eq(users.id, req.user!.id));
 
     ApiResponse.success(res, null, 'Password changed successfully');
   } catch (error) {
@@ -364,7 +367,7 @@ router.post('/reset-password', async (req, res, next) => {
       throw ApiError.badRequest('Invalid or expired reset token');
     }
 
-    if (user.resetPasswordExpires && new Date(user.resetPasswordExpires) < new Date()) {
+    if (user.resetPasswordExpires && new Date(user.resetPasswordExpires + 'Z') < new Date()) {
       throw ApiError.badRequest('Reset token has expired');
     }
 

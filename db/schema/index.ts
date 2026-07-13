@@ -33,6 +33,7 @@ export const users = pgTable('users', {
   googleId: varchar().unique(),
   isActive: boolean().default(true).notNull(),
   emailVerified: boolean().default(false).notNull(),
+  mustChangePassword: boolean().default(false).notNull(),
   resetPasswordToken: varchar(),
   resetPasswordExpires: timestamp({ mode: 'string' }),
   createdAt: timestamp({ mode: 'string' }).defaultNow().notNull(),

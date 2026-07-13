@@ -151,6 +151,33 @@ export async function sendPasswordResetEmail(
   );
 }
 
+export async function sendAccountCreatedEmail(
+  to: string,
+  name: string,
+  tempPassword: string,
+  role: string
+): Promise<void> {
+  const loginUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  await sendEmail(
+    to,
+    `Your ${appName} Account Has Been Created`,
+    `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #2563eb;">Account Created</h2>
+      <p>Hi ${name},</p>
+      <p>Your <strong>${role}</strong> account has been created on ${appName}.</p>
+      <p>Use the following credentials to sign in:</p>
+      <table style="width: 100%; border-collapse: collapse; margin: 16px 0; background: #f3f4f6; border-radius: 8px;">
+        <tr><td style="padding: 12px 16px; color: #6b7280;">Email</td><td style="padding: 12px 16px; font-weight: bold;">${to}</td></tr>
+        <tr><td style="padding: 12px 16px; color: #6b7280;">Password</td><td style="padding: 12px 16px; font-weight: bold; font-family: monospace;">${tempPassword}</td></tr>
+      </table>
+      <a href="${loginUrl}/auth/login" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 16px 0;">Sign In Now</a>
+      <p style="color: #ef4444; font-size: 14px;"><strong>Note:</strong> You will be required to change your password after first login.</p>
+      <p style="margin-top: 20px;">Best regards,<br/>The ${appName} Team</p>
+    </div>`
+  );
+}
+
 export async function sendBookingStatusUpdateEmail(
   to: string,
   name: string,

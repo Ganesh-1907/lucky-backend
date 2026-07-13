@@ -1,4 +1,6 @@
 import { Router, Response, NextFunction } from 'express';
+import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import db from '../config/database';
 import { eq, and, or, inArray, gte, count, sum, avg, desc, sql, ilike } from 'drizzle-orm';
 import { users, vendors, categories, services, bookings, payments, reviews, coupons, settings } from '../../db/schema/index';
@@ -6,6 +8,7 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdmin } from '../middleware/roleGuard';
 import { ApiResponse } from '../utils/apiResponse';
 import { ApiError } from '../utils/apiError';
+import { sendAccountCreatedEmail } from '../services/email.service';
 
 const router = Router();
 
@@ -521,6 +524,47 @@ router.delete('/coupons/:id', authenticate, requireAdmin, async (req: AuthReques
     const id = parseInt(req.params.id);
     await db.delete(coupons).where(eq(coupons.id, id));
     ApiResponse.success(res, null, 'Coupon deleted');
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/admin/users — Create a new user (EMPLOYEE or INVESTOR)
+router.post('/users', authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const { name, email, role, phone, city } = req.body;
+
+    if (!['EMPLOYEE', 'INVESTOR'].includes(role)) {
+      throw ApiError.badRequest('Only EMPLOYEE and INVESTOR roles can be created');
+    }
+
+    const [existing] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    if (existing) {
+      throw ApiError.conflict('A user with this email already exists');
+    }
+
+    const tempPassword = crypto.randomBytes(4).toString('hex') + '@' + crypto.randomBytes(2).toString('hex');
+    const hashedPassword = await bcrypt.hash(tempPassword, 12);
+
+    const [user] = await db.insert(users).values({
+      name,
+      email,
+      password: hashedPassword,
+      phone: phone || null,
+      role,
+      city: city || null,
+      isActive: true,
+      emailVerified: true,
+      mustChangePassword: true,
+    }).returning();
+
+    // Send credentials email (fire-and-forget)
+    sendAccountCreatedEmail(user.email, user.name, tempPassword, role).catch((err: Error) => {
+      console.warn('[Email] Failed to send account creation email:', err.message);
+    });
+
+    const { password: _, ...userData } = user;
+    ApiResponse.created(res, { user: userData, tempPassword }, `${role} account created successfully`);
   } catch (error) {
     next(error);
   }
