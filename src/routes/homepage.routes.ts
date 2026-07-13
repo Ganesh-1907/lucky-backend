@@ -15,9 +15,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
       orderBy: [asc(homepageSections.sortOrder)],
     });
 
-    const result = [];
-
-    for (const section of sections) {
+    const resultPromises = sections.map(async (section) => {
       let data: any = null;
 
       switch (section.type) {
@@ -85,8 +83,10 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
           break;
       }
 
-      result.push({ ...section, data });
-    }
+      return { ...section, data };
+    });
+
+    const result = await Promise.all(resultPromises);
 
     ApiResponse.success(res, result);
   } catch (error) {
