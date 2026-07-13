@@ -4,6 +4,7 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 import { ApiResponse } from '../utils/apiResponse';
 import { ApiError } from '../utils/apiError';
 import { generateBookingNumber } from '../utils/helpers';
+import { sendBookingConfirmationEmail, sendNewBookingVendorEmail, sendBookingStatusUpdateEmail } from '../services/email.service';
 import { eq, and, or, like, ilike, desc, asc, count, sum, sql, inArray, gte, lte, lt, ne, isNull } from 'drizzle-orm';
 import { users, vendors, categories, services, addons, serviceFaqs, bookings, reviews, menuItems, banners, coupons, wishlists, homepageSections, notifications, recentlyViewed, cities, settings, payments, employeeBookingAssignments, bookingNotes, bookingTimeline, followUps, employeeTasks, availabilitySlots, seoPages } from '../../db/schema/index';
 
@@ -114,8 +115,37 @@ router.post('/', authenticate, async (req: AuthRequest, res: Response, next: Nex
       with: {
         service: { columns: { title: true, images: true } },
         vendor: { columns: { businessName: true } },
+        client: { columns: { name: true, email: true } },
       },
     });
+
+    // Send confirmation email to client
+    const clientInfo = createdBooking?.client as { name: string; email: string } | undefined;
+    if (clientInfo) {
+      sendBookingConfirmationEmail(clientInfo.email, clientInfo.name, {
+        number: createdBooking!.bookingNumber,
+        date: new Date(createdBooking!.bookingDate).toLocaleDateString(),
+        timeSlot: createdBooking!.timeSlot || '',
+        service: (createdBooking!.service as any)?.title || '',
+        amount: createdBooking!.totalAmount,
+        status: createdBooking!.status,
+      }).catch(err => console.warn('[Email] Booking confirmation failed:', err.message));
+    }
+
+    // Send notification to vendor
+    const vendorData = await db.query.vendors.findFirst({
+      where: eq(vendors.id, createdBooking!.vendorId),
+      with: { user: { columns: { name: true, email: true } } },
+    });
+    if (vendorData?.user) {
+      sendNewBookingVendorEmail(vendorData.user.email, vendorData.businessName, {
+        number: createdBooking!.bookingNumber,
+        date: new Date(createdBooking!.bookingDate).toLocaleDateString(),
+        timeSlot: createdBooking!.timeSlot || '',
+        clientName: clientInfo?.name || 'A customer',
+        service: (createdBooking!.service as any)?.title || '',
+      }).catch(err => console.warn('[Email] Vendor notification failed:', err.message));
+    }
 
     ApiResponse.created(res, {
       booking: createdBooking,
@@ -235,6 +265,19 @@ router.put('/:id/status', authenticate, async (req: AuthRequest, res: Response, 
 
     const [updated] = await db.update(bookings).set(data).where(eq(bookings.id, id)).returning();
 
+    // Send status update email to client
+    const clientUser = await db.query.users.findFirst({
+      where: eq(users.id, booking.clientId),
+      columns: { name: true, email: true },
+    });
+    if (clientUser) {
+      sendBookingStatusUpdateEmail(clientUser.email, clientUser.name, {
+        number: booking.bookingNumber,
+        status: updated.status,
+        service: (booking as any).service?.title || 'Service',
+      }).catch(err => console.warn('[Email] Status update email failed:', err.message));
+    }
+
     ApiResponse.success(res, updated, `Booking ${status.toLowerCase()}`);
   } catch (error) {
     next(error);
@@ -261,6 +304,15 @@ router.post('/:id/cancel', authenticate, async (req: AuthRequest, res: Response,
       cancelReason: reason || 'Cancelled by customer',
       cancelledAt: new Date().toISOString(),
     }).where(eq(bookings.id, id)).returning();
+
+    // Send cancellation email
+    if (req.user?.email) {
+      sendBookingStatusUpdateEmail(req.user.email, req.user.name, {
+        number: booking.bookingNumber,
+        status: 'CANCELLED',
+        service: 'Booking',
+      }).catch(err => console.warn('[Email] Cancellation email failed:', err.message));
+    }
 
     ApiResponse.success(res, updated, 'Booking cancelled');
   } catch (error) {

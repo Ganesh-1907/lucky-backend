@@ -26,14 +26,17 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       conditions.push(sql`${banners.startDate} > NOW()`);
     }
 
-    if (position && position !== 'ALL') conditions.push(eq(banners.position, position as string));
+    const validPositions = ['HERO', 'SIDEBAR', 'FOOTER', 'POPUP'];
+    if (position && position !== 'ALL' && validPositions.includes(position as string)) {
+      conditions.push(eq(banners.position, position as any));
+    }
     
     if (search) {
       const s = `%${search}%`;
       conditions.push(or(
         ilike(banners.title, s), 
         ilike(banners.link, s),
-        ilike(banners.description, s)
+        ilike(banners.subtitle, s)
       ));
     }
     
@@ -43,7 +46,6 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
     else if (sort === 'title_asc') orderByCondition = asc(banners.title);
     else if (sort === 'title_desc') orderByCondition = desc(banners.title);
     else if (sort === 'order') orderByCondition = asc(banners.sortOrder);
-    else if (sort === 'priority') orderByCondition = desc(banners.priority);
     else if (sort === 'updated') orderByCondition = desc(banners.updatedAt);
 
     const pageNum = parseInt(page as string, 10);

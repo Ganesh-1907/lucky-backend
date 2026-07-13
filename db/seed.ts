@@ -180,9 +180,9 @@ async function main() {
 
   // Create Banners
   const bannerData = [
-    { title: 'Make Every Celebration Unforgettable', subtitle: 'Book premium decoration services for any occasion', image: '/banners/hero-1.jpg', link: '/services', position: 'HERO', sortOrder: 0, isActive: true },
-    { title: 'Wedding Season Special', subtitle: 'Up to 20% off on wedding decorations', image: '/banners/hero-2.jpg', link: '/category/wedding-decorations', position: 'HERO', sortOrder: 1, isActive: true },
-    { title: 'Surprise Your Loved Ones', subtitle: 'Romantic candlelight dinner setups starting ₹2999', image: '/banners/hero-3.jpg', link: '/category/candlelight-dinner', position: 'HERO', sortOrder: 2, isActive: true },
+    { title: 'Make Every Celebration Unforgettable', subtitle: 'Book premium decoration services for any occasion', image: 'https://images.unsplash.com/photo-1530103862676-de8892bf30b9?w=1600&q=80', link: '/services', position: 'HERO', sortOrder: 0, isActive: true },
+    { title: 'Wedding Season Special', subtitle: 'Up to 20% off on wedding decorations', image: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=1600&q=80', link: '/category/wedding-decorations', position: 'HERO', sortOrder: 1, isActive: true },
+    { title: 'Surprise Your Loved Ones', subtitle: 'Romantic candlelight dinner setups starting ₹2999', image: 'https://images.unsplash.com/photo-1518893883800-45cd0954574b?w=1600&q=80', link: '/category/candlelight-dinner', position: 'HERO', sortOrder: 2, isActive: true },
   ];
 
   for (const b of bannerData) {
@@ -245,7 +245,11 @@ async function main() {
         description: 'Transform your space with our premium balloon decoration package.',
         shortDesc: 'Premium balloon setup with LED lights, backdrop & personalized banner',
         basePrice: '4999', discountPrice: '3999',
-        images: JSON.stringify(['/services/birthday-1.jpg', '/services/birthday-2.jpg', '/services/birthday-3.jpg']),
+        images: JSON.stringify([
+          'https://images.unsplash.com/photo-1560298803-1d998f6b5245?w=800&q=80',
+          'https://images.unsplash.com/photo-1558636508-e0db3814bd1d?w=800&q=80',
+          'https://images.unsplash.com/photo-1464349095431-e9a21285b5f3?w=800&q=80',
+        ]),
         tags: JSON.stringify(['birthday', 'balloons', 'decoration']),
         status: 'APPROVED', isActive: true, isTrending: true, isBestSeller: true, isNewArrival: false, isFeatured: true,
         minAdvancePercent: 50, cities: JSON.stringify(['Mumbai', 'Pune', 'Delhi']),
@@ -257,7 +261,11 @@ async function main() {
         description: 'Create magical moments with our premium candlelight dinner setup.',
         shortDesc: 'Romantic dinner with candles, rose petals & fairy lights',
         basePrice: '5999', discountPrice: '4499',
-        images: JSON.stringify(['/services/candle-1.jpg', '/services/candle-2.jpg', '/services/candle-3.jpg']),
+        images: JSON.stringify([
+          'https://images.unsplash.com/photo-1518893883800-45cd0954574b?w=800&q=80',
+          'https://images.unsplash.com/photo-1522673607200-164d1b6ce486?w=800&q=80',
+          'https://images.unsplash.com/photo-1478146059778-9e4f6a8e1d7e?w=800&q=80',
+        ]),
         tags: JSON.stringify(['romantic', 'dinner', 'candlelight']),
         status: 'APPROVED', isActive: true, isTrending: true, isNewArrival: true, isFeatured: true,
         minAdvancePercent: 50, cities: JSON.stringify(['Mumbai', 'Delhi', 'Bangalore']),
@@ -269,7 +277,11 @@ async function main() {
         description: 'Elegant and royal stage decoration for your wedding.',
         shortDesc: 'Royal wedding stage with flowers, draping & LED backdrop',
         basePrice: '49999', discountPrice: '39999',
-        images: JSON.stringify(['/services/wedding-1.jpg', '/services/wedding-2.jpg', '/services/wedding-3.jpg']),
+        images: JSON.stringify([
+          'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?w=800&q=80',
+          'https://images.unsplash.com/photo-1527529482837-4698179dc6ce?w=800&q=80',
+          'https://images.unsplash.com/photo-1465495976277-4387d4b0b4c6?w=800&q=80',
+        ]),
         tags: JSON.stringify(['wedding', 'stage', 'decoration', 'premium']),
         status: 'APPROVED', isActive: true, isBestSeller: true, isFeatured: true,
         minAdvancePercent: 30, cities: JSON.stringify(['Mumbai', 'Delhi', 'Hyderabad', 'Jaipur']),
@@ -281,7 +293,11 @@ async function main() {
         description: 'Complete theme party setup for kids.',
         shortDesc: 'Complete kids theme party with character setup & return gifts',
         basePrice: '7999', discountPrice: '5999',
-        images: JSON.stringify(['/services/kids-1.jpg', '/services/kids-2.jpg', '/services/kids-3.jpg']),
+        images: JSON.stringify([
+          'https://images.unsplash.com/photo-1558636508-e0db3814bd1d?w=800&q=80',
+          'https://images.unsplash.com/photo-1560298803-1d998f6b5245?w=800&q=80',
+          'https://images.unsplash.com/photo-1464349095431-e9a21285b5f3?w=800&q=80',
+        ]),
         tags: JSON.stringify(['birthday', 'kids', 'theme', 'party']),
         status: 'APPROVED', isActive: true, isTrending: true, isNewArrival: true,
         minAdvancePercent: 50, cities: JSON.stringify(['Mumbai', 'Pune', 'Bangalore', 'Chennai']),

@@ -2,13 +2,15 @@ import { Router } from 'express';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import db from '../config/database';
-import { eq, or } from 'drizzle-orm';
+import { eq, and, or } from 'drizzle-orm';
 import { users, vendors } from '../../db/schema/index';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { validate } from '../middleware/validate';
 import { ApiResponse } from '../utils/apiResponse';
 import { ApiError } from '../utils/apiError';
+import { sendWelcomeEmail, sendPasswordResetEmail, isEmailConfigured } from '../services/email.service';
 
 const router = Router();
 
@@ -83,6 +85,11 @@ router.post('/register', validate(registerSchema), async (req, res, next) => {
     if (role !== 'VENDOR') {
       tokens = generateTokens(user.id);
     }
+
+    // Send welcome email (fire-and-forget)
+    sendWelcomeEmail(user.email, user.name).catch(err => {
+      console.warn('[Email] Failed to send welcome email:', err.message);
+    });
 
     ApiResponse.created(res, {
       user: userData,
@@ -289,6 +296,78 @@ router.put('/change-password', authenticate, async (req: AuthRequest, res, next)
     await db.update(users).set({ password: hashedPassword }).where(eq(users.id, req.user!.id));
 
     ApiResponse.success(res, null, 'Password changed successfully');
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/auth/forgot-password
+router.post('/forgot-password', async (req, res, next) => {
+  try {
+    const { email } = req.body;
+    if (!email) throw ApiError.badRequest('Email is required');
+
+    const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+    if (!user) {
+      // Don't reveal if email exists — return success either way
+      return ApiResponse.success(res, null, 'If the email exists, a reset link has been sent.');
+    }
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetTokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+    const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    await db.update(users).set({
+      resetPasswordToken: resetTokenHash,
+      resetPasswordExpires: expires.toISOString(),
+    }).where(eq(users.id, user.id));
+
+    const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/reset-password?token=${resetToken}&email=${email}`;
+
+    await sendPasswordResetEmail(user.email, user.name, resetLink).catch(err => {
+      console.warn('[Email] Failed to send reset email:', err.message);
+    });
+
+    ApiResponse.success(res, null, 'If the email exists, a reset link has been sent.');
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/auth/reset-password
+router.post('/reset-password', async (req, res, next) => {
+  try {
+    const { token, email, password } = req.body;
+    if (!token || !email || !password) {
+      throw ApiError.badRequest('Token, email, and new password are required');
+    }
+
+    const resetTokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    const [user] = await db.select().from(users).where(
+      and(
+        eq(users.email, email),
+        eq(users.resetPasswordToken, resetTokenHash),
+      )
+    ).limit(1);
+
+    if (!user) {
+      throw ApiError.badRequest('Invalid or expired reset token');
+    }
+
+    if (user.resetPasswordExpires && new Date(user.resetPasswordExpires) < new Date()) {
+      throw ApiError.badRequest('Reset token has expired');
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12);
+
+    await db.update(users).set({
+      password: hashedPassword,
+      resetPasswordToken: null,
+      resetPasswordExpires: null,
+    }).where(eq(users.id, user.id));
+
+    ApiResponse.success(res, null, 'Password reset successful. You can now login.');
   } catch (error) {
     next(error);
   }

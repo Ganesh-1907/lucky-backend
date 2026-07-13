@@ -33,6 +33,8 @@ export const users = pgTable('users', {
   googleId: varchar().unique(),
   isActive: boolean().default(true).notNull(),
   emailVerified: boolean().default(false).notNull(),
+  resetPasswordToken: varchar(),
+  resetPasswordExpires: timestamp({ mode: 'string' }),
   createdAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
   updatedAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
@@ -250,20 +252,13 @@ export const banners = pgTable('banners', {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
   title: varchar().notNull(),
   subtitle: varchar(),
-  description: text(),
   image: varchar().notNull(),
   link: varchar(),
   sortOrder: integer().default(0).notNull(),
-  priority: integer().default(0).notNull(),
   isActive: boolean().default(true).notNull(),
   position: bannerPositionEnum().default('HERO').notNull(),
   startDate: timestamp({ mode: 'string' }),
   endDate: timestamp({ mode: 'string' }),
-  visibility: jsonb(), // { desktop: boolean, tablet: boolean, mobile: boolean }
-  clicks: integer().default(0).notNull(),
-  impressions: integer().default(0).notNull(),
-  createdBy: integer(), // reference to users
-  updatedBy: integer(), // reference to users
   createdAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
   updatedAt: timestamp({ mode: 'string' }).defaultNow().notNull(),
 });

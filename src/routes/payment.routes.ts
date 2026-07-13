@@ -1,10 +1,11 @@
 import { Router, Response, NextFunction } from 'express';
 import db from '../config/database';
 import { eq } from 'drizzle-orm';
-import { bookings, services, payments } from '../../db/schema/index';
+import { bookings, services, payments, users } from '../../db/schema/index';
 import { authenticate, AuthRequest } from '../middleware/auth';
 import { ApiResponse } from '../utils/apiResponse';
 import { ApiError } from '../utils/apiError';
+import { sendPaymentReceiptEmail } from '../services/email.service';
 
 const router = Router();
 
@@ -127,6 +128,20 @@ router.post('/verify', authenticate, async (req: AuthRequest, res: Response, nex
         remainingAmount: String(Math.max(0, newRemaining)),
         status: booking.status === 'PENDING' ? 'CONFIRMED' : booking.status,
       }).where(eq(bookings.id, booking.id));
+
+      // Send payment receipt email
+      const client = await db.query.users.findFirst({
+        where: eq(users.id, booking.clientId),
+        columns: { name: true, email: true },
+      });
+      if (client) {
+        sendPaymentReceiptEmail(client.email, client.name, {
+          orderId: String(payment.razorpayOrderId ?? ''),
+          amount: String(payment.amount ?? ''),
+          bookingNumber: String(booking.bookingNumber ?? ''),
+          type: String(payment.type ?? ''),
+        }).catch(err => console.warn('[Email] Payment receipt failed:', err.message));
+      }
     }
 
     ApiResponse.success(res, null, 'Payment verified successfully');

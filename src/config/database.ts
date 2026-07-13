@@ -10,6 +10,8 @@ const connectionString = process.env.DATABASE_URL!;
 
 const client = postgres(connectionString, {
   max: 1,
+  connect_timeout: 30,
+  idle_timeout: 30,
   onnotice: () => {},
 });
 
