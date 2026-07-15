@@ -22,6 +22,7 @@ import adminRoutes from './routes/admin.routes';
 import paymentRoutes from './routes/payment.routes';
 import employeeRoutes from './routes/employee.routes';
 import investorRoutes from './routes/investor.routes';
+import contactRoutes from './routes/contact.routes';
 
 const app = express();
 
@@ -83,6 +84,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/employee', employeeRoutes);
 app.use('/api/investor', investorRoutes);
+app.use('/api/contact', contactRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {

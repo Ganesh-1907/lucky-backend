@@ -72,6 +72,73 @@ router.get('/dashboard', authenticate, requireAdmin, async (_req: AuthRequest, r
   }
 });
 
+// GET /api/admin/reports — Admin reports
+router.get('/reports', authenticate, requireAdmin, async (_req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const twelveMonthsAgo = new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString();
+
+    const [totalRevenueResult, totalOrdersResult, activeVendorsResult, totalCustomersResult, monthlyRevenue, topCategories, topVendors] = await Promise.all([
+      db.select({ total: sum(bookings.totalAmount) }).from(bookings).where(inArray(bookings.status, ['CONFIRMED', 'COMPLETED'])),
+      db.select({ value: count() }).from(bookings),
+      db.select({ value: count() }).from(vendors).where(eq(vendors.status, 'APPROVED')),
+      db.select({ value: count() }).from(users).where(eq(users.role, 'CLIENT')),
+      db.select({
+        month: sql<string>`TO_CHAR(${bookings.createdAt}, 'YYYY-MM')`,
+        revenue: sum(bookings.totalAmount),
+      }).from(bookings)
+        .where(and(inArray(bookings.status, ['CONFIRMED', 'COMPLETED']), gte(bookings.createdAt, twelveMonthsAgo)))
+        .groupBy(sql`TO_CHAR(${bookings.createdAt}, 'YYYY-MM')`)
+        .orderBy(sql`TO_CHAR(${bookings.createdAt}, 'YYYY-MM')`),
+      db.select({
+        name: categories.name,
+        revenue: sum(bookings.totalAmount),
+        count: count(),
+      }).from(bookings)
+        .innerJoin(services, eq(bookings.serviceId, services.id))
+        .innerJoin(categories, eq(services.categoryId, categories.id))
+        .where(inArray(bookings.status, ['CONFIRMED', 'COMPLETED']))
+        .groupBy(categories.id, categories.name)
+        .orderBy(desc(sum(bookings.totalAmount)))
+        .limit(10),
+      db.select({
+        name: vendors.businessName,
+        revenue: sum(bookings.totalAmount),
+        bookings: count(),
+      }).from(bookings)
+        .innerJoin(vendors, eq(bookings.vendorId, vendors.id))
+        .where(inArray(bookings.status, ['CONFIRMED', 'COMPLETED']))
+        .groupBy(vendors.id, vendors.businessName)
+        .orderBy(desc(sum(bookings.totalAmount)))
+        .limit(10),
+    ]);
+
+    ApiResponse.success(res, {
+      overview: {
+        totalRevenue: Number(totalRevenueResult[0]?.total || 0),
+        totalOrders: Number(totalOrdersResult[0]?.value || 0),
+        activeVendors: Number(activeVendorsResult[0]?.value || 0),
+        totalCustomers: Number(totalCustomersResult[0]?.value || 0),
+      },
+      monthlyRevenue: monthlyRevenue.map(m => ({
+        month: m.month,
+        revenue: Number(m.revenue || 0),
+      })),
+      topCategories: topCategories.map(c => ({
+        name: c.name,
+        revenue: Number(c.revenue || 0),
+        bookings: Number(c.count || 0),
+      })),
+      topVendors: topVendors.map(v => ({
+        name: v.name,
+        revenue: Number(v.revenue || 0),
+        bookings: Number(v.bookings || 0),
+      })),
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/admin/users — List all users
 router.get('/users', authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
