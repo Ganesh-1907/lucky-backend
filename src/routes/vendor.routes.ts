@@ -42,7 +42,7 @@ router.get('/dashboard/stats', authenticate, requireVendor, async (req: AuthRequ
 
     const startOfMonth = new Date(new Date().setDate(1));
 
-    const [totalBookingsResult, activeServicesResult, pendingBookingsResult, recentBookings, monthlyRevenueResult] = await Promise.all([
+    const [totalBookingsResult, activeServicesResult, pendingBookingsResult, recentBookings, monthlyRevenueResult, viewsResult] = await Promise.all([
       db.select({ value: count() }).from(bookings).where(eq(bookings.vendorId, vendor.id)),
       db.select({ value: count() }).from(services).where(and(eq(services.vendorId, vendor.id), eq(services.status, 'APPROVED'), eq(services.isActive, true))),
       db.select({ value: count() }).from(bookings).where(and(eq(bookings.vendorId, vendor.id), eq(bookings.status, 'PENDING'))),
@@ -58,6 +58,7 @@ router.get('/dashboard/stats', authenticate, requireVendor, async (req: AuthRequ
       db.select({ total: sum(bookings.totalAmount) }).from(bookings).where(
         and(eq(bookings.vendorId, vendor.id), inArray(bookings.status, ['CONFIRMED', 'COMPLETED']), gte(bookings.createdAt, startOfMonth.toISOString()))
       ),
+      db.select({ total: sum(services.viewCount) }).from(services).where(eq(services.vendorId, vendor.id)),
     ]);
 
     ApiResponse.success(res, {
@@ -68,6 +69,7 @@ router.get('/dashboard/stats', authenticate, requireVendor, async (req: AuthRequ
       monthlyRevenue: Number(monthlyRevenueResult[0]?.total || 0),
       avgRating: Number(vendor.avgRating),
       reviewCount: vendor.reviewCount,
+      totalViews: Number(viewsResult[0]?.total || 0),
       recentBookings,
     });
   } catch (error) {
