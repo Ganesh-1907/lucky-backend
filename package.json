@@ -28,6 +28,7 @@
     "db:push": "drizzle-kit push",
     "db:pull": "drizzle-kit pull",
     "db:seed": "npx tsx db/seed.ts",
+    "db:seed:admin": "npx tsx db/seed-admin.ts",
     "db:seed:employee": "npx tsx db/seed-employee.ts",
     "db:seed:investor": "npx tsx db/seed-investor.ts",
     "db:studio": "drizzle-kit studio",
