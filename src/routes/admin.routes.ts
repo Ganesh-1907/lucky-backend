@@ -28,7 +28,7 @@ router.get('/dashboard', authenticate, requireAdmin, async (_req: AuthRequest, r
       topServices,
       monthlyRevenueResult,
     ] = await Promise.all([
-      db.select({ total: sum(bookings.totalAmount) }).from(bookings).where(inArray(bookings.status, ['CONFIRMED', 'COMPLETED'])),
+      db.select({ total: sum(bookings.commission) }).from(bookings).where(inArray(bookings.status, ['CONFIRMED', 'COMPLETED'])),
       db.select({ value: count() }).from(bookings),
       db.select({ value: count() }).from(vendors).where(eq(vendors.status, 'APPROVED')),
       db.select({ value: count() }).from(users).where(eq(users.role, 'CLIENT')),
@@ -51,7 +51,7 @@ router.get('/dashboard', authenticate, requireAdmin, async (_req: AuthRequest, r
       }),
       db.select({
         month: sql<string>`TO_CHAR(${bookings.createdAt}, 'Mon')`,
-        revenue: sum(bookings.totalAmount),
+        revenue: sum(bookings.commission),
       }).from(bookings).where(
         and(
           inArray(bookings.status, ['CONFIRMED', 'COMPLETED']), 
@@ -93,37 +93,37 @@ router.get('/reports', authenticate, requireAdmin, async (_req: AuthRequest, res
     const twelveMonthsAgo = new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString();
 
     const [totalRevenueResult, totalOrdersResult, activeVendorsResult, totalCustomersResult, monthlyRevenue, topCategories, topVendors] = await Promise.all([
-      db.select({ total: sum(bookings.totalAmount) }).from(bookings).where(inArray(bookings.status, ['CONFIRMED', 'COMPLETED'])),
+      db.select({ total: sum(bookings.commission) }).from(bookings).where(inArray(bookings.status, ['CONFIRMED', 'COMPLETED'])),
       db.select({ value: count() }).from(bookings),
       db.select({ value: count() }).from(vendors).where(eq(vendors.status, 'APPROVED')),
       db.select({ value: count() }).from(users).where(eq(users.role, 'CLIENT')),
       db.select({
         month: sql<string>`TO_CHAR(${bookings.createdAt}, 'YYYY-MM')`,
-        revenue: sum(bookings.totalAmount),
+        revenue: sum(bookings.commission),
       }).from(bookings)
         .where(and(inArray(bookings.status, ['CONFIRMED', 'COMPLETED']), gte(bookings.createdAt, twelveMonthsAgo)))
         .groupBy(sql`TO_CHAR(${bookings.createdAt}, 'YYYY-MM')`)
         .orderBy(sql`TO_CHAR(${bookings.createdAt}, 'YYYY-MM')`),
       db.select({
         name: categories.name,
-        revenue: sum(bookings.totalAmount),
+        revenue: sum(bookings.commission),
         count: count(),
       }).from(bookings)
         .innerJoin(services, eq(bookings.serviceId, services.id))
         .innerJoin(categories, eq(services.categoryId, categories.id))
         .where(inArray(bookings.status, ['CONFIRMED', 'COMPLETED']))
         .groupBy(categories.id, categories.name)
-        .orderBy(desc(sum(bookings.totalAmount)))
+        .orderBy(desc(sum(bookings.commission)))
         .limit(10),
       db.select({
         name: vendors.businessName,
-        revenue: sum(bookings.totalAmount),
+        revenue: sum(bookings.commission),
         bookings: count(),
       }).from(bookings)
         .innerJoin(vendors, eq(bookings.vendorId, vendors.id))
         .where(inArray(bookings.status, ['CONFIRMED', 'COMPLETED']))
         .groupBy(vendors.id, vendors.businessName)
-        .orderBy(desc(sum(bookings.totalAmount)))
+        .orderBy(desc(sum(bookings.commission)))
         .limit(10),
     ]);
 
