@@ -336,7 +336,7 @@ router.post('/forgot-password', async (req, res, next) => {
 
     const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/reset-password?token=${resetToken}&email=${email}`;
 
-    await sendPasswordResetEmail(user.email, user.name, resetLink).catch(err => {
+    sendPasswordResetEmail(user.email, user.name, resetLink).catch(err => {
       console.warn('[Email] Failed to send reset email:', err.message);
     });
 
