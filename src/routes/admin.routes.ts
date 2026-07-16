@@ -725,6 +725,41 @@ router.put('/users/:id/toggle', authenticate, requireAdmin, async (req: AuthRequ
   }
 });
 
+// PUT /api/admin/users/:id — Edit user details (EMPLOYEE or INVESTOR)
+router.put('/users/:id', authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { name, email, phone, city, role } = req.body;
+
+    const [user] = await db.select().from(users).where(eq(users.id, id)).limit(1);
+    if (!user) throw ApiError.notFound('User not found');
+    
+    // Check if updating to a non-supported role, or modifying an Admin
+    if (user.role === 'ADMIN' || (role && !['EMPLOYEE', 'INVESTOR'].includes(role))) {
+       throw ApiError.badRequest('Can only edit Employee or Investor roles');
+    }
+
+    if (email && email !== user.email) {
+      const [existing] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+      if (existing) throw ApiError.conflict('A user with this email already exists');
+    }
+
+    const [updatedUser] = await db.update(users).set({
+      name: name || user.name,
+      email: email || user.email,
+      phone: phone !== undefined ? phone : user.phone,
+      city: city !== undefined ? city : user.city,
+      role: role || user.role,
+      updatedAt: new Date().toISOString()
+    }).where(eq(users.id, id)).returning();
+
+    const { password: _, ...userData } = updatedUser;
+    ApiResponse.success(res, userData, 'User updated successfully');
+  } catch (error) {
+    next(error);
+  }
+});
+
 // GET /api/admin/settings
 router.get('/settings', authenticate, requireAdmin, async (_req: AuthRequest, res: Response, next: NextFunction) => {
   try {
