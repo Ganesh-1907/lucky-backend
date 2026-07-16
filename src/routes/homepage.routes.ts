@@ -21,7 +21,12 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
       switch (section.type) {
         case 'banner':
           data = await db.query.banners.findMany({
-            where: and(eq(banners.isActive, true), eq(banners.position, 'HERO')),
+            where: and(
+              eq(banners.isActive, true), 
+              eq(banners.position, 'HERO'),
+              or(sql`${banners.startDate} IS NULL`, sql`${banners.startDate} <= NOW()`),
+              or(sql`${banners.endDate} IS NULL`, sql`${banners.endDate} >= NOW()`)
+            ),
             orderBy: [asc(banners.sortOrder)],
           });
           break;
