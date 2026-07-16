@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer';
 
-const appName = 'Repair Boy';
+const appName = 'Lucky Marketplace';
 
 function getTransporter() {
   const host = process.env.SMTP_HOST || '';
@@ -203,6 +203,44 @@ export async function sendBookingStatusUpdateEmail(
         <tr><td style="padding: 8px; border-bottom: 1px solid #e5e7eb; color: #6b7280;">Service</td><td style="padding: 8px; border-bottom: 1px solid #e5e7eb;">${booking.service}</td></tr>
         <tr><td style="padding: 8px; color: #6b7280;">Status</td><td style="padding: 8px; font-weight: bold; color: ${statusColors[booking.status] || '#2563eb'}; text-transform: uppercase;">${booking.status}</td></tr>
       </table>
+      <p style="margin-top: 20px;">Best regards,<br/>The ${appName} Team</p>
+    </div>`
+  );
+}
+
+export async function sendVendorStatusEmail(
+  to: string,
+  name: string,
+  status: string
+): Promise<void> {
+  const statusColors: Record<string, string> = {
+    APPROVED: '#22c55e',
+    REJECTED: '#ef4444',
+    SUSPENDED: '#f59e0b',
+  };
+
+  const loginUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+  let message = '';
+  if (status === 'APPROVED') {
+    message = `Congratulations! Your vendor application on ${appName} has been approved. You can now log in and start adding services. <br><br>
+               <a href="${loginUrl}/auth/login" style="display: inline-block; background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 16px 0;">Sign In Now</a>`;
+  } else if (status === 'REJECTED') {
+    message = `We regret to inform you that your vendor application on ${appName} has been rejected. Please contact support for more details.`;
+  } else if (status === 'SUSPENDED') {
+    message = `Your vendor account on ${appName} has been suspended. Please contact support for more details.`;
+  }
+
+  if (!message) return;
+
+  await sendEmail(
+    to,
+    `Vendor Account ${status}`,
+    `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: ${statusColors[status] || '#2563eb'};">Account ${status}</h2>
+      <p>Hi ${name},</p>
+      <p>${message}</p>
       <p style="margin-top: 20px;">Best regards,<br/>The ${appName} Team</p>
     </div>`
   );

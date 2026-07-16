@@ -8,7 +8,7 @@ import { authenticate, AuthRequest } from '../middleware/auth';
 import { requireAdmin } from '../middleware/roleGuard';
 import { ApiResponse } from '../utils/apiResponse';
 import { ApiError } from '../utils/apiError';
-import { sendAccountCreatedEmail } from '../services/email.service';
+import { sendAccountCreatedEmail, sendVendorStatusEmail } from '../services/email.service';
 
 const router = Router();
 
@@ -258,6 +258,12 @@ router.put('/vendors/:id/status', authenticate, requireAdmin, async (req: AuthRe
     });
 
     if (!vendor) throw ApiError.notFound('Vendor not found');
+
+    if (status !== 'PENDING') {
+      sendVendorStatusEmail(vendor.user.email, vendor.user.name, status).catch(err => {
+        console.warn('[Email] Failed to send vendor status email:', err.message);
+      });
+    }
 
     ApiResponse.success(res, vendor, `Vendor ${status.toLowerCase()}`);
   } catch (error) {
