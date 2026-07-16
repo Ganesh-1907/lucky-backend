@@ -93,7 +93,7 @@ router.get('/reports', authenticate, requireAdmin, async (_req: AuthRequest, res
   try {
     const twelveMonthsAgo = new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString();
 
-    const [totalRevenueResult, totalOrdersResult, activeVendorsResult, totalCustomersResult, monthlyRevenue, topCategories, topVendors] = await Promise.all([
+    const [totalRevenueResult, totalOrdersResult, activeVendorsResult, totalCustomersResult, monthlyRevenue, topCategories, topVendors, topCities] = await Promise.all([
       db.select({ total: sum(bookings.commission) }).from(bookings).where(inArray(bookings.status, ['CONFIRMED', 'COMPLETED'])),
       db.select({ value: count() }).from(bookings),
       db.select({ value: count() }).from(vendors).where(eq(vendors.status, 'APPROVED')),
@@ -127,6 +127,14 @@ router.get('/reports', authenticate, requireAdmin, async (_req: AuthRequest, res
         .groupBy(vendors.id, vendors.businessName)
         .orderBy(desc(sum(bookings.commission)))
         .limit(10),
+      db.select({
+        city: bookings.city,
+        orders: count(),
+      }).from(bookings)
+        .where(inArray(bookings.status, ['CONFIRMED', 'COMPLETED']))
+        .groupBy(bookings.city)
+        .orderBy(desc(count()))
+        .limit(10),
     ]);
 
     ApiResponse.success(res, {
@@ -150,6 +158,10 @@ router.get('/reports', authenticate, requireAdmin, async (_req: AuthRequest, res
         name: v.name,
         revenue: Number(v.revenue || 0),
         bookings: Number(v.bookings || 0),
+      })),
+      topCities: topCities.map((c: any) => ({
+        city: c.city || 'Unknown',
+        orders: Number(c.orders || 0),
       })),
     });
   } catch (error) {
