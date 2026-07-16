@@ -337,10 +337,7 @@ router.get('/vendor/list', authenticate, async (req: AuthRequest, res: Response,
     if (searchVal) {
       const s = `%${searchVal}%`;
       conditions.push(
-        or(
-          ilike(bookings.bookingNumber, s),
-          ilike(bookings.status, s)
-        )
+        sql`(${bookings.bookingNumber} ILIKE ${s} OR ${bookings.status}::text ILIKE ${s})`
       );
     }
 

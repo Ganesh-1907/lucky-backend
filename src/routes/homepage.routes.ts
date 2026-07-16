@@ -30,13 +30,13 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
           data = await db.query.categories.findMany({
             where: and(eq(categories.isActive, true)),
             orderBy: [asc(categories.sortOrder)],
-            limit: section.config?.limit || 8,
+            limit: (section.config as any)?.limit || 8,
           });
           break;
 
         case 'services': {
-          const config = section.config || {};
-          const conditions = [
+          const config = (section.config as any) || {};
+          const conditions: any[] = [
             eq(services.status, 'APPROVED'),
             eq(services.isActive, true),
           ];
@@ -66,7 +66,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
           data = await db.query.cities.findMany({
             where: eq(cities.isActive, true),
             orderBy: [asc(cities.sortOrder)],
-            limit: section.config?.limit || 10,
+            limit: (section.config as any)?.limit || 10,
           });
           break;
 
@@ -78,7 +78,7 @@ router.get('/', async (_req: Request, res: Response, next: NextFunction) => {
               service: { columns: { title: true } },
             },
             orderBy: [desc(reviews.createdAt)],
-            limit: section.config?.limit || 6,
+            limit: (section.config as any)?.limit || 6,
           });
           break;
       }

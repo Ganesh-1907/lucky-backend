@@ -49,15 +49,30 @@ router.get('/dashboard', authenticate, requireAdmin, async (_req: AuthRequest, r
         orderBy: [desc(services.bookingCount)],
         limit: 5,
       }),
-      db.select({ total: sum(bookings.totalAmount) }).from(bookings).where(
-        and(inArray(bookings.status, ['CONFIRMED', 'COMPLETED']), gte(bookings.createdAt, startOfMonth.toISOString()))
-      ),
+      db.select({
+        month: sql<string>`TO_CHAR(${bookings.createdAt}, 'Mon')`,
+        revenue: sum(bookings.totalAmount),
+      }).from(bookings).where(
+        and(
+          inArray(bookings.status, ['CONFIRMED', 'COMPLETED']), 
+          gte(bookings.createdAt, new Date(new Date().getFullYear(), 0, 1).toISOString())
+        )
+      ).groupBy(sql`TO_CHAR(${bookings.createdAt}, 'Mon')`),
     ]);
+
+    const monthlyRevData: Record<string, number> = {};
+    if (Array.isArray(monthlyRevenueResult)) {
+      monthlyRevenueResult.forEach((row: any) => {
+        if (row.month) {
+          monthlyRevData[row.month.trim().toLowerCase()] = Number(row.revenue || 0);
+        }
+      });
+    }
 
     ApiResponse.success(res, {
       stats: {
         totalRevenue: Number(totalRevenueResult[0]?.total || 0),
-        monthlyRevenue: Number(monthlyRevenueResult[0]?.total || 0),
+        monthlyRevenue: monthlyRevData,
         totalOrders: Number(totalOrdersResult[0]?.value || 0),
         totalVendors: Number(totalVendorsResult[0]?.value || 0),
         totalClients: Number(totalClientsResult[0]?.value || 0),
@@ -158,7 +173,12 @@ router.get('/users', authenticate, requireAdmin, async (req: AuthRequest, res: R
       city: users.city,
       isActive: users.isActive,
       createdAt: users.createdAt,
-    }).from(users).where(whereFilter).orderBy(desc(users.createdAt));
+      vendorStatus: vendors.status,
+    })
+    .from(users)
+    .leftJoin(vendors, eq(users.id, vendors.userId))
+    .where(whereFilter)
+    .orderBy(desc(users.createdAt));
 
     ApiResponse.success(res, usersList);
   } catch (error) {

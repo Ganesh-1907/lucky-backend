@@ -44,22 +44,18 @@ router.get('/', optionalAuth, async (req: AuthRequest, res: Response, next: Next
       conditions.push(sql`${services.cities}::text ILIKE ${'%' + city + '%'}`);
     }
 
-    const priceConditions = [];
-    if (minPrice) priceConditions.push(gte(services.basePrice, parseFloat(minPrice as string)));
-    if (maxPrice) priceConditions.push(lte(services.basePrice, parseFloat(maxPrice as string)));
-    if (priceConditions.length > 0) conditions.push(and(...priceConditions));
+    const priceConditions: any[] = [];
+    if (minPrice) priceConditions.push(gte(services.basePrice, minPrice as string));
+    if (maxPrice) priceConditions.push(lte(services.basePrice, maxPrice as string));
+    if (priceConditions.length > 0) conditions.push(and(...priceConditions) as any);
 
     if (rating) {
-      conditions.push(gte(services.avgRating, parseFloat(rating as string)));
+      conditions.push(gte(services.avgRating, rating as string));
     }
 
     if (search) {
       conditions.push(
-        or(
-          ilike(services.title, `%${search}%`),
-          ilike(services.description, `%${search}%`),
-          ilike(services.shortDesc, `%${search}%`),
-        )
+        sql`(${services.title} ILIKE ${'%' + search + '%'} OR ${services.description} ILIKE ${'%' + search + '%'} OR ${services.shortDesc} ILIKE ${'%' + search + '%'})`
       );
     }
 
@@ -169,7 +165,7 @@ router.get('/:slug', optionalAuth, async (req: AuthRequest, res: Response, next:
         where: and(eq(recentlyViewed.userId, req.user.id), eq(recentlyViewed.serviceId, service.id)),
       });
       if (existing) {
-        await db.update(recentlyViewed).set({ viewedAt: new Date() }).where(eq(recentlyViewed.id, existing.id));
+        await db.update(recentlyViewed).set({ viewedAt: new Date().toISOString() }).where(eq(recentlyViewed.id, existing.id));
       } else {
         await db.insert(recentlyViewed).values({ userId: req.user.id, serviceId: service.id });
       }

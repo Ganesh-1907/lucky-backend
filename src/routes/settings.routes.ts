@@ -1,8 +1,9 @@
 import express from 'express';
-import { db } from '../db';
-import { settings } from '../db/schema';
+import db from '../config/database';
+import { settings } from '../../db/schema/index';
 import { eq } from 'drizzle-orm';
-import { authenticate, authorize } from '../middleware/auth';
+import { authenticate } from '../middleware/auth';
+import { requireAdmin } from '../middleware/roleGuard';
 
 const router = express.Router();
 
@@ -27,7 +28,7 @@ router.get('/', async (req, res, next) => {
 });
 
 // PUT /api/settings - Update settings (Admin only)
-router.put('/', authenticate, authorize('ADMIN'), async (req, res, next) => {
+router.put('/', authenticate, requireAdmin, async (req, res, next) => {
   try {
     const updates = req.body;
     
