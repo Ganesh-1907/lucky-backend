@@ -635,7 +635,11 @@ router.get('/coupons', authenticate, requireAdmin, async (_req: AuthRequest, res
 // POST /api/admin/coupons — Create coupon
 router.post('/coupons', authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
-    const [coupon] = await db.insert(coupons).values(req.body).returning();
+    const data = { ...req.body };
+    if (data.code) {
+      data.code = data.code.toUpperCase();
+    }
+    const [coupon] = await db.insert(coupons).values(data).returning();
     ApiResponse.created(res, coupon);
   } catch (error) {
     next(error);
@@ -647,6 +651,9 @@ router.put('/coupons/:id', authenticate, requireAdmin, async (req: AuthRequest, 
   try {
     const id = parseInt(req.params.id);
     const { id: _, createdAt, updatedAt, ...updateData } = req.body;
+    if (updateData.code) {
+      updateData.code = updateData.code.toUpperCase();
+    }
     const [coupon] = await db.update(coupons).set(updateData).where(eq(coupons.id, id)).returning();
     if (!coupon) throw ApiError.notFound('Coupon not found');
     ApiResponse.success(res, coupon, 'Coupon updated');
