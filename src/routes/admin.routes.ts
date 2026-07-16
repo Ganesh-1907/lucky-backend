@@ -52,6 +52,7 @@ router.get('/dashboard', authenticate, requireAdmin, async (_req: AuthRequest, r
       db.select({
         month: sql<string>`TO_CHAR(${bookings.createdAt}, 'Mon')`,
         revenue: sum(bookings.commission),
+        orders: count(),
       }).from(bookings).where(
         and(
           inArray(bookings.status, ['CONFIRMED', 'COMPLETED']), 
@@ -100,6 +101,7 @@ router.get('/reports', authenticate, requireAdmin, async (_req: AuthRequest, res
       db.select({
         month: sql<string>`TO_CHAR(${bookings.createdAt}, 'YYYY-MM')`,
         revenue: sum(bookings.commission),
+        orders: count(),
       }).from(bookings)
         .where(and(inArray(bookings.status, ['CONFIRMED', 'COMPLETED']), gte(bookings.createdAt, twelveMonthsAgo)))
         .groupBy(sql`TO_CHAR(${bookings.createdAt}, 'YYYY-MM')`)
@@ -128,15 +130,16 @@ router.get('/reports', authenticate, requireAdmin, async (_req: AuthRequest, res
     ]);
 
     ApiResponse.success(res, {
-      overview: {
+      stats: {
         totalRevenue: Number(totalRevenueResult[0]?.total || 0),
         totalOrders: Number(totalOrdersResult[0]?.value || 0),
         activeVendors: Number(activeVendorsResult[0]?.value || 0),
-        totalCustomers: Number(totalCustomersResult[0]?.value || 0),
+        totalClients: Number(totalCustomersResult[0]?.value || 0),
       },
       monthlyRevenue: monthlyRevenue.map(m => ({
         month: m.month,
         revenue: Number(m.revenue || 0),
+        orders: Number(m.orders || 0),
       })),
       topCategories: topCategories.map(c => ({
         name: c.name,
@@ -250,6 +253,46 @@ router.put('/vendors/:id/status', authenticate, requireAdmin, async (req: AuthRe
   }
 });
 
+// PUT /api/admin/vendors/:id — Edit full vendor profile
+router.put('/vendors/:id', authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { 
+      businessName, gstNumber, panNumber, accountHolder, accountNumber, ifscCode, bankName,
+      vendorName, email, phone, city
+    } = req.body;
+
+    const vendor = await db.query.vendors.findFirst({ where: eq(vendors.id, id) });
+    if (!vendor) throw ApiError.notFound('Vendor not found');
+
+    if (vendorName || email || phone || city) {
+      const userData: any = {};
+      if (vendorName) userData.name = vendorName;
+      if (email) userData.email = email;
+      if (phone) userData.phone = phone;
+      if (city) userData.city = city;
+      await db.update(users).set(userData).where(eq(users.id, vendor.userId));
+    }
+
+    const vendorData: any = {};
+    if (businessName) vendorData.businessName = businessName;
+    if (gstNumber !== undefined) vendorData.gstNumber = gstNumber;
+    if (panNumber !== undefined) vendorData.panNumber = panNumber;
+    if (accountHolder !== undefined) vendorData.bankAccountName = accountHolder;
+    if (accountNumber !== undefined) vendorData.bankAccountNo = accountNumber;
+    if (ifscCode !== undefined) vendorData.bankIfsc = ifscCode;
+    if (bankName !== undefined) vendorData.bankName = bankName;
+
+    if (Object.keys(vendorData).length > 0) {
+      await db.update(vendors).set(vendorData).where(eq(vendors.id, id));
+    }
+
+    ApiResponse.success(res, null, 'Vendor updated successfully');
+  } catch (error) {
+    next(error);
+  }
+});
+
 // PUT /api/admin/vendors/:id/commission — Set vendor commission
 router.put('/vendors/:id/commission', authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
@@ -323,14 +366,21 @@ router.get('/services', authenticate, requireAdmin, async (req: AuthRequest, res
 router.put('/services/:id/status', authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const id = parseInt(req.params.id);
-    const { status, isFeatured, isTrending, isBestSeller, isNewArrival } = req.body;
+    const { status, isFeatured, isTrending, isBestSeller, isNewArrival, title, categoryId, description, duration, basePrice, discountPrice, images } = req.body;
 
     const data: any = {};
-    if (status) data.status = status;
+    if (status !== undefined) data.status = status;
     if (isFeatured !== undefined) data.isFeatured = isFeatured;
     if (isTrending !== undefined) data.isTrending = isTrending;
     if (isBestSeller !== undefined) data.isBestSeller = isBestSeller;
     if (isNewArrival !== undefined) data.isNewArrival = isNewArrival;
+    if (title !== undefined) data.title = title;
+    if (categoryId !== undefined) data.categoryId = parseInt(categoryId);
+    if (description !== undefined) data.description = description;
+    if (duration !== undefined) data.serviceDuration = parseInt(duration);
+    if (basePrice !== undefined) data.basePrice = parseFloat(basePrice);
+    if (discountPrice !== undefined) data.discountPrice = parseFloat(discountPrice);
+    if (images !== undefined) data.images = Array.isArray(images) ? JSON.stringify(images) : images;
 
     const [service] = await db.update(services).set(data).where(eq(services.id, id)).returning();
     if (!service) throw ApiError.notFound('Service not found');
