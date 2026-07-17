@@ -172,18 +172,27 @@ router.put('/password', authenticate, requireVendor, async (req: AuthRequest, re
   try {
     const { currentPassword, newPassword } = req.body;
     
-    if (!currentPassword || !newPassword) {
-      throw ApiError.badRequest('Current and new password are required');
+    if (!newPassword || newPassword.length < 6) {
+      throw ApiError.badRequest('New password must be at least 6 characters');
     }
 
     const user = await db.query.users.findFirst({ where: eq(users.id, req.user!.id) });
-    if (!user || !user.password) throw ApiError.badRequest('User not found or no password set');
+    if (!user) throw ApiError.notFound('User not found');
 
-    const isValid = await bcrypt.compare(currentPassword, user.password);
-    if (!isValid) throw ApiError.unauthorized('Incorrect current password');
+    if (!user.password) {
+      if (currentPassword) {
+        throw ApiError.badRequest('You registered with a social account and do not have a current password. Please leave it blank to set a new password.');
+      }
+    } else {
+      if (!currentPassword) {
+        throw ApiError.badRequest('Current password is required');
+      }
+      const isValid = await bcrypt.compare(currentPassword, user.password);
+      if (!isValid) throw ApiError.unauthorized('Incorrect current password');
+    }
 
-    const hashed = await bcrypt.hash(newPassword, 10);
-    await db.update(users).set({ password: hashed }).where(eq(users.id, user.id));
+    const hashed = await bcrypt.hash(newPassword, 12);
+    await db.update(users).set({ password: hashed, mustChangePassword: false }).where(eq(users.id, user.id));
 
     ApiResponse.success(res, {}, 'Password updated successfully');
   } catch (error) {

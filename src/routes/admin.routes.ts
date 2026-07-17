@@ -89,15 +89,25 @@ router.get('/dashboard', authenticate, requireAdmin, async (_req: AuthRequest, r
 });
 
 // GET /api/admin/reports — Admin reports
-router.get('/reports', authenticate, requireAdmin, async (_req: AuthRequest, res: Response, next: NextFunction) => {
+router.get('/reports', authenticate, requireAdmin, async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
+    const { period } = req.query;
+    
+    let startDate = new Date();
+    if (period === 'monthly') startDate.setMonth(startDate.getMonth() - 1);
+    else if (period === 'quarterly') startDate.setMonth(startDate.getMonth() - 3);
+    else startDate.setFullYear(startDate.getFullYear() - 1); // default yearly
+    
+    const startDateString = startDate.toISOString();
+    
+    // twelveMonthsAgo is kept for the monthly chart which always shows 12 months
     const twelveMonthsAgo = new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString();
 
     const [totalRevenueResult, totalOrdersResult, activeVendorsResult, totalCustomersResult, monthlyRevenue, topCategories, topVendors, topCities] = await Promise.all([
-      db.select({ total: sum(bookings.commission) }).from(bookings).where(inArray(bookings.status, ['CONFIRMED', 'COMPLETED'])),
-      db.select({ value: count() }).from(bookings),
-      db.select({ value: count() }).from(vendors).where(eq(vendors.status, 'APPROVED')),
-      db.select({ value: count() }).from(users).where(eq(users.role, 'CLIENT')),
+      db.select({ total: sum(bookings.commission) }).from(bookings).where(and(inArray(bookings.status, ['CONFIRMED', 'COMPLETED']), gte(bookings.createdAt, startDateString))),
+      db.select({ value: count() }).from(bookings).where(gte(bookings.createdAt, startDateString)),
+      db.select({ value: count() }).from(vendors).where(and(eq(vendors.status, 'APPROVED'), gte(vendors.createdAt, startDateString))),
+      db.select({ value: count() }).from(users).where(and(eq(users.role, 'CLIENT'), gte(users.createdAt, startDateString))),
       db.select({
         month: sql<string>`TO_CHAR(${bookings.createdAt}, 'YYYY-MM')`,
         revenue: sum(bookings.commission),
@@ -113,25 +123,28 @@ router.get('/reports', authenticate, requireAdmin, async (_req: AuthRequest, res
       }).from(bookings)
         .innerJoin(services, eq(bookings.serviceId, services.id))
         .innerJoin(categories, eq(services.categoryId, categories.id))
-        .where(inArray(bookings.status, ['CONFIRMED', 'COMPLETED']))
+        .where(and(inArray(bookings.status, ['CONFIRMED', 'COMPLETED']), gte(bookings.createdAt, startDateString)))
         .groupBy(categories.id, categories.name)
         .orderBy(desc(sum(bookings.commission)))
         .limit(10),
       db.select({
         name: vendors.businessName,
+        city: users.city,
+        rating: vendors.avgRating,
         revenue: sum(bookings.commission),
         bookings: count(),
       }).from(bookings)
         .innerJoin(vendors, eq(bookings.vendorId, vendors.id))
-        .where(inArray(bookings.status, ['CONFIRMED', 'COMPLETED']))
-        .groupBy(vendors.id, vendors.businessName)
+        .innerJoin(users, eq(vendors.userId, users.id))
+        .where(and(inArray(bookings.status, ['CONFIRMED', 'COMPLETED']), gte(bookings.createdAt, startDateString)))
+        .groupBy(vendors.id, vendors.businessName, users.city, vendors.avgRating)
         .orderBy(desc(sum(bookings.commission)))
         .limit(10),
       db.select({
         city: bookings.city,
         orders: count(),
       }).from(bookings)
-        .where(inArray(bookings.status, ['CONFIRMED', 'COMPLETED']))
+        .where(and(inArray(bookings.status, ['CONFIRMED', 'COMPLETED']), gte(bookings.createdAt, startDateString)))
         .groupBy(bookings.city)
         .orderBy(desc(count()))
         .limit(10),
@@ -156,6 +169,8 @@ router.get('/reports', authenticate, requireAdmin, async (_req: AuthRequest, res
       })),
       topVendors: topVendors.map(v => ({
         name: v.name,
+        city: v.city || 'Unknown',
+        rating: Number(v.rating || 0),
         revenue: Number(v.revenue || 0),
         bookings: Number(v.bookings || 0),
       })),

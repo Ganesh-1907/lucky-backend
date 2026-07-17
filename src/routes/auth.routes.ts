@@ -292,15 +292,21 @@ router.put('/change-password', authenticate, async (req: AuthRequest, res, next)
     }
 
     const [user] = await db.select().from(users).where(eq(users.id, req.user!.id)).limit(1);
+    
     if (!user?.password) {
-      throw ApiError.badRequest('Cannot change password for social login accounts');
-    }
-
-    // Skip current password check if user is forced to change password
-    if (!user.mustChangePassword) {
-      const isMatch = await bcrypt.compare(currentPassword, user.password);
-      if (!isMatch) {
-        throw ApiError.badRequest('Current password is incorrect');
+      if (currentPassword) {
+        throw ApiError.badRequest('You registered with a social account and do not have a current password. Please leave the current password field empty to set a new password.');
+      }
+    } else {
+      // Skip current password check if user is forced to change password
+      if (!user.mustChangePassword) {
+        if (!currentPassword) {
+          throw ApiError.badRequest('Current password is required');
+        }
+        const isMatch = await bcrypt.compare(currentPassword, user.password);
+        if (!isMatch) {
+          throw ApiError.badRequest('Current password is incorrect');
+        }
       }
     }
 
