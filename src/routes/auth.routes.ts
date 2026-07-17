@@ -320,8 +320,8 @@ router.post('/forgot-password', async (req, res, next) => {
     if (!email) throw ApiError.badRequest('Email is required');
 
     const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
-    if (!user) {
-      // Don't reveal if email exists — return success either way
+    if (!user || (user.authProvider && user.authProvider !== 'LOCAL')) {
+      // Don't reveal if email exists, and don't allow social accounts to reset password
       return ApiResponse.success(res, null, 'If the email exists, a reset link has been sent.');
     }
 
