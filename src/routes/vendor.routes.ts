@@ -247,8 +247,10 @@ router.get('/calendar', authenticate, requireVendor, async (req: AuthRequest, re
     const month = parseInt(req.query.month as string) || new Date().getMonth() + 1;
     const year = parseInt(req.query.year as string) || new Date().getFullYear();
 
-    const startDate = new Date(year, month - 1, 1).toISOString();
-    const endDate = new Date(year, month, 1).toISOString();
+    // Generate exact strings for PostgreSQL timestamp without timezone to avoid parsing inconsistencies
+    const startDate = `${year}-${String(month).padStart(2, '0')}-01 00:00:00`;
+    const lastDay = new Date(year, month, 0).getDate();
+    const endDate = `${year}-${String(month).padStart(2, '0')}-${lastDay} 23:59:59`;
 
     const vendorBookings = await db.query.bookings.findMany({
       where: and(

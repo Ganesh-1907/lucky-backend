@@ -1,25 +1,30 @@
-import jwt from 'jsonwebtoken';
-import dotenv from 'dotenv';
-dotenv.config();
+import db from './src/config/database';
+import { bookings } from './db/schema/index';
+import { eq, gte, lt, and } from 'drizzle-orm';
 
-const token = jwt.sign({ userId: 2 }, process.env.JWT_SECRET || 'secret', { expiresIn: '1d' });
+async function test() {
+  const vendorId = 1;
+  const month = 7;
+  const year = 2026;
+  const startDate = new Date(year, month - 1, 1).toISOString();
+  const endDate = new Date(year, month, 1).toISOString();
 
-async function run() {
-  console.log("Token:", token);
-  try {
-    const res = await fetch('http://localhost:5000/api/vendors/analytics?range=30d', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    const text = await res.text();
-    console.log("Analytics response:", res.status, text);
-    
-    const res2 = await fetch('http://localhost:5000/api/vendors/notifications', {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-    const text2 = await res2.text();
-    console.log("Notifications response:", res2.status, text2);
-  } catch (e) {
-    console.error(e);
+  const vendorBookings = await db.query.bookings.findMany({
+    where: and(
+      eq(bookings.vendorId, vendorId),
+      gte(bookings.bookingDate, startDate),
+      lt(bookings.bookingDate, endDate)
+    )
+  });
+
+  const bookingsByDate: Record<string, any[]> = {};
+  for (const b of vendorBookings) {
+    const d = new Date(b.bookingDate);
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    if (!bookingsByDate[dateStr]) bookingsByDate[dateStr] = [];
+    bookingsByDate[dateStr].push(b.id);
   }
+  console.log("bookingsByDate:", JSON.stringify(bookingsByDate, null, 2));
+  process.exit(0);
 }
-run();
+test();
