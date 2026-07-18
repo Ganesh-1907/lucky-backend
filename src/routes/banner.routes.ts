@@ -26,7 +26,7 @@ router.get('/', async (req: Request, res: Response, next: NextFunction) => {
       conditions.push(sql`${banners.startDate} > NOW()`);
     }
 
-    const validPositions = ['HERO', 'SIDEBAR', 'FOOTER', 'POPUP'];
+    const validPositions = ['HERO', 'SIDEBAR', 'FOOTER', 'POPUP', 'CATEGORY', 'HOMEPAGE', 'CUSTOM'];
     if (position && position !== 'ALL' && validPositions.includes(position as string)) {
       conditions.push(eq(banners.position, position as any));
     }
