@@ -1,52 +1,45 @@
 import db from './src/config/database';
-import { notifications, users, vendors, bookings, services, categories } from './db/schema/index';
-import { eq, and, desc, count, sum, inArray, gte, sql, avg } from 'drizzle-orm';
+import { bookings } from './db/schema/index';
+import { eq, and, desc, count, sum, inArray, gte, sql } from 'drizzle-orm';
 
 async function test() {
   try {
-    const userId = 2; // Assuming vendor user id is 2, change if needed
-    console.log("Testing notifications...");
-    const unreadCountResult = await db.select({ value: count() })
-      .from(notifications)
-      .where(and(eq(notifications.userId, userId), eq(notifications.isRead, false)));
-    
-    console.log("Unread count:", unreadCountResult);
+    console.log("Testing admin monthly revenue...");
+    const monthlyRevenueResult = await db.select({
+      month: sql<string>`TO_CHAR(${bookings.createdAt}, 'Mon')`,
+      revenue: sum(bookings.commission),
+      orders: count(),
+    }).from(bookings).where(
+      and(
+        inArray(bookings.status, ['CONFIRMED', 'COMPLETED']), 
+        gte(bookings.createdAt, new Date(new Date().getFullYear(), 0, 1).toISOString())
+      )
+    ).groupBy(sql`TO_CHAR(${bookings.createdAt}, 'Mon')`);
 
-    const notificationsList = await db.query.notifications.findMany({
-      where: eq(notifications.userId, userId),
-      orderBy: [desc(notifications.createdAt)],
-      limit: 20,
-    });
-    console.log("Notifications list length:", notificationsList.length);
+    console.log("monthlyRevenueResult:", monthlyRevenueResult);
+    
+    // Test what happens in the controller mapping
+    const monthlyRevData: Record<string, number> = {};
+    if (Array.isArray(monthlyRevenueResult)) {
+      monthlyRevenueResult.forEach((row: any) => {
+        if (row.month) {
+          monthlyRevData[row.month.trim().toLowerCase()] = Number(row.revenue || 0);
+        }
+      });
+    }
+    console.log("Mapped monthlyRevData:", monthlyRevData);
+
+    const allBookings = await db.select({
+      id: bookings.id,
+      status: bookings.status,
+      createdAt: bookings.createdAt,
+      commission: bookings.commission
+    }).from(bookings);
+    console.log("All bookings:", allBookings);
 
   } catch (error) {
-    console.error("Notifications error:", error);
+    console.error("Error:", error);
   }
-
-  try {
-    const vendorId = 1;
-    const startDateStr = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    
-    console.log("Testing analytics...");
-    const topServices = await db.select({ id: services.id, title: services.title, count: count(), revenue: sum(bookings.totalAmount) })
-        .from(bookings).innerJoin(services, eq(bookings.serviceId, services.id))
-        .where(and(eq(bookings.vendorId, vendorId), inArray(bookings.status, ['CONFIRMED', 'COMPLETED']), gte(bookings.createdAt, startDateStr)))
-        .groupBy(services.id, services.title)
-        .orderBy(desc(sum(bookings.totalAmount)))
-        .limit(5);
-
-    console.log("Top services:", topServices);
-
-    const statusDist = await db.select({ status: bookings.status, count: count() })
-      .from(bookings)
-      .where(and(eq(bookings.vendorId, vendorId), gte(bookings.createdAt, startDateStr)))
-      .groupBy(bookings.status);
-
-    console.log("Status dist:", statusDist);
-  } catch (error) {
-    console.error("Analytics error:", error);
-  }
-
   process.exit(0);
 }
 

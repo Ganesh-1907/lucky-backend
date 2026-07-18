@@ -15,20 +15,22 @@ router.get('/dashboard/stats', authenticate, requireVendor, async (req: AuthRequ
     const vendor = await db.query.vendors.findFirst({ where: eq(vendors.userId, req.user!.id) });
     if (!vendor) throw ApiError.notFound('Vendor not found');
 
-    const startOfMonth = new Date(new Date().setDate(1)).toISOString();
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayStr = today.toISOString();
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
     
-    const lastWeek = new Date();
-    lastWeek.setDate(lastWeek.getDate() - 7);
-    const lastWeekStr = lastWeek.toISOString();
+    const startOfMonth = `${year}-${month}-01 00:00:00`;
+    const todayStr = `${year}-${month}-${day} 00:00:00`;
+    
+    const lastWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const lastWeekStr = `${lastWeek.getFullYear()}-${String(lastWeek.getMonth() + 1).padStart(2, '0')}-${String(lastWeek.getDate()).padStart(2, '0')} 00:00:00`;
 
     const [
       totalBookingsResult, activeServicesResult, pendingBookingsResult, recentBookings, 
       monthlyRevenueResult, viewsResult, todayBookingsResult, weeklyRevenueResult, 
       cancelledBookingsResult, completedBookingsResult, upcomingBookingsResult,
-      bookingStatusDistributionResult, catRevenueResult, clientCounts
+      bookingStatusDistributionResult, catRevenueResult, clientCounts, totalEarningsResult
     ] = await Promise.all([
       db.select({ value: count() }).from(bookings).where(eq(bookings.vendorId, vendor.id)),
       db.select({ value: count() }).from(services).where(eq(services.vendorId, vendor.id)),
@@ -60,7 +62,10 @@ router.get('/dashboard/stats', authenticate, requireVendor, async (req: AuthRequ
         .innerJoin(categories, eq(services.categoryId, categories.id))
         .where(and(eq(bookings.vendorId, vendor.id), inArray(bookings.status, ['CONFIRMED', 'COMPLETED'])))
         .groupBy(categories.name),
-      db.select({ clientId: bookings.clientId, count: count() }).from(bookings).where(eq(bookings.vendorId, vendor.id)).groupBy(bookings.clientId)
+      db.select({ clientId: bookings.clientId, count: count() }).from(bookings).where(eq(bookings.vendorId, vendor.id)).groupBy(bookings.clientId),
+      db.select({ total: sum(bookings.totalAmount) }).from(bookings).where(
+        and(eq(bookings.vendorId, vendor.id), inArray(bookings.status, ['CONFIRMED', 'COMPLETED']))
+      )
     ]);
 
     const repeatCustomers = clientCounts.filter(c => c.count > 1).length;
@@ -69,7 +74,7 @@ router.get('/dashboard/stats', authenticate, requireVendor, async (req: AuthRequ
       totalBookings: Number(totalBookingsResult[0]?.value || 0),
       activeServices: Number(activeServicesResult[0]?.value || 0),
       pendingBookings: Number(pendingBookingsResult[0]?.value || 0),
-      totalEarnings: Number(vendor.totalEarnings),
+      totalEarnings: Number(totalEarningsResult[0]?.total || 0),
       monthlyRevenue: Number(monthlyRevenueResult[0]?.total || 0),
       avgRating: Number(vendor.avgRating),
       reviewCount: vendor.reviewCount,
@@ -307,7 +312,7 @@ router.get('/earnings', authenticate, requireVendor, async (req: AuthRequest, re
     const vendor = await db.query.vendors.findFirst({ where: eq(vendors.userId, req.user!.id) });
     if (!vendor) throw ApiError.notFound('Vendor not found');
 
-    const [monthlyEarnings, recentTransactionsResult, pendingPayoutsResult] = await Promise.all([
+    const [monthlyEarnings, recentTransactionsResult, pendingPayoutsResult, totalEarningsResult] = await Promise.all([
       db.select({
         month: sql<string>`TO_CHAR(${bookings.createdAt}, 'YYYY-MM')`,
         revenue: sum(bookings.totalAmount),
@@ -324,10 +329,12 @@ router.get('/earnings', authenticate, requireVendor, async (req: AuthRequest, re
       }),
       db.select({ total: sum(bookings.totalAmount) }).from(bookings)
         .where(and(eq(bookings.vendorId, vendor.id), inArray(bookings.status, ['CONFIRMED', 'COMPLETED']))),
+      db.select({ total: sum(bookings.totalAmount) }).from(bookings)
+        .where(and(eq(bookings.vendorId, vendor.id), inArray(bookings.status, ['CONFIRMED', 'COMPLETED']))),
     ]);
 
     ApiResponse.success(res, {
-      totalEarnings: Number(vendor.totalEarnings),
+      totalEarnings: Number(totalEarningsResult[0]?.total || 0),
       pendingPayouts: Number(pendingPayoutsResult[0]?.total || 0),
       monthlyEarnings: monthlyEarnings.map(m => ({
         month: m.month,
@@ -359,11 +366,13 @@ router.get('/analytics', authenticate, requireVendor, async (req: AuthRequest, r
     else if (range === '1y') startDate.setFullYear(now.getFullYear() - 1);
     else startDate.setDate(now.getDate() - 30);
 
-    const startDateStr = startDate.toISOString();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const startDateStr = `${startDate.getFullYear()}-${pad(startDate.getMonth() + 1)}-${pad(startDate.getDate())} 00:00:00`;
     
     // For growth calculation
     const periodDuration = now.getTime() - startDate.getTime();
-    const previousStartDateStr = new Date(startDate.getTime() - periodDuration).toISOString();
+    const previousStartDate = new Date(startDate.getTime() - periodDuration);
+    const previousStartDateStr = `${previousStartDate.getFullYear()}-${pad(previousStartDate.getMonth() + 1)}-${pad(previousStartDate.getDate())} 00:00:00`;
 
     const [
       revenueResult, prevRevenueResult,

@@ -273,8 +273,12 @@ router.put('/profile', authenticate, async (req: AuthRequest, res, next) => {
 
     await db.update(users).set({ name, phone, city, avatar }).where(eq(users.id, req.user!.id));
 
-    const [user] = await db.select().from(users).where(eq(users.id, req.user!.id)).limit(1);
-    const { password: _, ...userData } = user!;
+    const updatedUser = await db.query.users.findFirst({
+      where: eq(users.id, req.user!.id),
+      with: { vendor: true },
+    });
+    
+    const { password: _, ...userData } = updatedUser!;
 
     ApiResponse.success(res, userData, 'Profile updated');
   } catch (error) {

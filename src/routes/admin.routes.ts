@@ -56,7 +56,7 @@ router.get('/dashboard', authenticate, requireAdmin, async (_req: AuthRequest, r
       }).from(bookings).where(
         and(
           inArray(bookings.status, ['CONFIRMED', 'COMPLETED']), 
-          gte(bookings.createdAt, new Date(new Date().getFullYear(), 0, 1).toISOString())
+          gte(bookings.createdAt, `${new Date().getFullYear()}-01-01 00:00:00`)
         )
       ).groupBy(sql`TO_CHAR(${bookings.createdAt}, 'Mon')`),
     ]);
@@ -98,10 +98,13 @@ router.get('/reports', authenticate, requireAdmin, async (req: AuthRequest, res:
     else if (period === 'quarterly') startDate.setMonth(startDate.getMonth() - 3);
     else startDate.setFullYear(startDate.getFullYear() - 1); // default yearly
     
-    const startDateString = startDate.toISOString();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const startDateString = `${startDate.getFullYear()}-${pad(startDate.getMonth() + 1)}-${pad(startDate.getDate())} 00:00:00`;
     
     // twelveMonthsAgo is kept for the monthly chart which always shows 12 months
-    const twelveMonthsAgo = new Date(new Date().setFullYear(new Date().getFullYear() - 1)).toISOString();
+    const tma = new Date();
+    tma.setFullYear(tma.getFullYear() - 1);
+    const twelveMonthsAgo = `${tma.getFullYear()}-${pad(tma.getMonth() + 1)}-${pad(tma.getDate())} 00:00:00`;
 
     const [totalRevenueResult, totalOrdersResult, activeVendorsResult, totalCustomersResult, monthlyRevenue, topCategories, topVendors, topCities] = await Promise.all([
       db.select({ total: sum(bookings.commission) }).from(bookings).where(and(inArray(bookings.status, ['CONFIRMED', 'COMPLETED']), gte(bookings.createdAt, startDateString))),
